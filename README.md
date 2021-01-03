@@ -3,9 +3,8 @@
 
 
 
-This is the disassembled and [commented source code] for the 1983 Commodore 64 game Voidrunner by Jeff Minter. 
+This is the disassembled and [commented source code] for the 1987 Commodore 16/Plus 4 game Voidrunner by Jeff Minter. 
 
-A version of the game you can play in your browser can be found at [https://voidrunner.xyz].
 
 ## Requirements
 
