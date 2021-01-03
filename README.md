@@ -23,9 +23,9 @@ $ make
 ```
 The compiled game is written to the `bin` folder. 
 
-To just compile the game and get a binary (`gridrunner.prg`) do:
+To just compile the game and get a binary (`voidrunner.prg`) do:
 
 ```sh
-$ make gridrunner
+$ make voidrunner
 ```
 
