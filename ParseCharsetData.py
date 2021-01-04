@@ -1,4 +1,4 @@
-f = open("src/charset.asm", 'r')
+f = open("src/charset-bytes.asm", 'r')
 o = open("src/decompressed-charset.asm", 'w')
 
 bytes = []

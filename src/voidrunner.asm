@@ -71,10 +71,15 @@ SCREEN_RAM = $0C00
 
         * = $1001
 
+;------------------------------------------------------------------
+; SYS 4112 (Branch execution to JumpToInitialize)
+;------------------------------------------------------------------
         .BYTE $15,$10,$C3,$07,$9E,$34,$31,$31
         .BYTE $32,$20,$3A,$20,$00
         BRK #$00
-j1010   JMP j2B0A
+
+JumpToInitialize
+        JMP Initialize
 
         ORA (RAM_PDIR,X) ;PDIR    7501 on-chip data-direction register
 a1015   .BYTE $03
@@ -2176,7 +2181,7 @@ b23E4   LDA f2420,X
         BPL b23E4
         LDA LivesLeft
         BNE b2450
-        JSR s2646
+        JSR DrawSomethingToBottomOfScreen
         LDA #$30
         STA RAM_DATPTR_LO
         LDX #$20
@@ -2194,7 +2199,7 @@ b240F   LDX #$F8
         TXS 
         LDA #$00
         STA LivesLeft
-        JMP j1010
+        JMP JumpToInitialize
 
 f241A   .BYTE $00,$05,$09,$0D,$11,$15
 f2420   .BYTE $06,$26
@@ -2454,19 +2459,24 @@ j2638   LDA #<p0101
         LDA #>p0101
         STA a2BF2
         JMP j3B62
-
 a2645   .BYTE $00
-s2646   LDX #$10
-b2648   LDA f2D81,X
+
+;------------------------------------------------------------------
+; Draw something to the bottom of the screen not sure what it is
+;------------------------------------------------------------------
+DrawSomethingToBottomOfScreen
+        LDX #$10 ;
+b2648   LDA TitleScreenText,X
         STA SCREEN_RAM + $032C,X
         CLC 
         ADC #$20
         STA SCREEN_RAM + $0354,X
-        LDA #$5C
+        LDA #$5C ; Light Blue
         STA COLOR_RAM + $032C,X
         STA COLOR_RAM + $0354,X
         DEX 
         BPL b2648
+
         LDX #$07
 b2661   LDA f2E02,X
         ORA #$0D
@@ -2630,7 +2640,8 @@ b2AFE   STA f13A2,X
         STA a14A2
         RTS 
 
-j2B0A   LDA #$00
+Initialize
+        LDA #$00
         STA $FF15    ;Background color register
         STA $FF19    ;Color register #4
         STA a3196
@@ -2658,10 +2669,13 @@ j2B0A   LDA #$00
         LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         AND #$FB
         STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
+
+        ; Load the custom character set from $3C00
         LDA $FF13    ;Bit 0 :    Clock status
         AND #$03
         ORA #$3C
         STA $FF13    ;Bit 0 :    Clock status
+
         LDA #$02
         STA aFF0A
         STA aFF09
@@ -2825,12 +2839,13 @@ b2D03   STA f2C65,X
         BPL b2D03
         RTS 
 
-s2D0A   LDA aFF07
+s2D0A   
+        LDA aFF07
         AND #$EF
         ORA #$10
         STA aFF07
         LDX #$10
-b2D16   LDA f2D81,X
+b2D16   LDA TitleScreenText,X
         STA SCREEN_RAM + $01C4,X
         STA SCREEN_RAM + $0124,X
         STA SCREEN_RAM + $0264,X
@@ -2876,7 +2891,8 @@ b2D69   LDA TitleTop,X
         BPL b2D69
         RTS 
 
-f2D81   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
+TitleScreenText
+        .BYTE $01,$02,$03,$04,$05,$06,$07,$08 ; Padding before the title text
         .BYTE $09,$0A,$0B,$0C,$0B,$0C,$0D,$0E
         .BYTE $07
 TitleTop .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
@@ -4476,7 +4492,7 @@ b3BC8   LDX #$F8
         STA $FF11    ;Bits 0-3 : Volume control
         LDA LivesLeft
         BNE b3BD8
-        JMP j1010
+        JMP JumpToInitialize
 
 b3BD8   JMP DisplayHiScoreScreen
 
@@ -4485,40 +4501,9 @@ a3BDB   .BYTE $00,$FF,$FF,$FF,$FF,$FF,$FF,$FF
         .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
         .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
         .BYTE $FF,$FF,$FF,$FF,$FF
-p3C00   .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $54,$76,$76,$74,$74,$74,$74,$74
-        .BYTE $00,$AA,$AA,$00,$00,$54,$74,$74
-        .BYTE $00,$AA,$AA,$00,$00,$15,$7F,$77
-        .BYTE $00,$AA,$AA,$00,$00,$05,$47,$47
-        .BYTE $00,$AA,$AA,$00,$00,$41,$47,$47
-        .BYTE $54,$76,$76,$74,$74,$74,$F4,$74
-        .BYTE $00,$AA,$AA,$00,$00,$55,$77,$7D
-        .BYTE $00,$AA,$AA,$00,$00,$51,$D1,$51
-        .BYTE $00,$AA,$AA,$00,$00,$51,$D1,$D1
-        .BYTE $00,$AA,$AA,$00,$00,$50,$D0,$D0
-        .BYTE $00,$AA,$AA,$00,$00,$50,$74,$7D
-        .BYTE $54,$76,$76,$74,$74,$74,$74,$74
-        .BYTE $00,$AA,$AA,$00,$00,$15,$7F,$75
-        .BYTE $00,$AA,$AA,$00,$00,$50,$F4,$74
-f3C78   .BYTE $FF
-f3C79   .BYTE $FF,$FF,$FF,$FC,$FC,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FC,$FC,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$CF,$CF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FC,$FC,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$00
-        .BYTE $00,$00,$7E,$00,$00,$00,$00,$00
-        .BYTE $00,$00,$00,$00,$00,$00,$00
 
 .include "charset.asm"
 
+        .BYTE $F0
+        .BYTE $F0,$F0,$F0,$0F
+        .BYTE $0F,$0F
