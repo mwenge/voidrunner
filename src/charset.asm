@@ -163,8 +163,7 @@ p3C00
                                                 ; 01010000    * *    
                                                 ; 11110100   **** *  
                                                 ; 01110100    *** *  
-f3C79 = *+$01
-f3C78
+startOfDynamicCharset
         .BYTE $FF,$FF,$FF,$FF,$FC,$FC,$FF,$FF   ;.BYTE $FF,$FF,$FF,$FF,$FC,$FC,$FF,$FF
                                                 ; CHARACTER $0f
                                                 ; 11111111   ********

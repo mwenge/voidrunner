@@ -5,15 +5,15 @@ RAM_EAL = $9D
 ;
 ; **** ZP ABSOLUTE ADRESSES **** 
 ;
-RAM_SRCHTK = $02
-RAM_ZPVEC1 = $03
-a04 = $04
-RAM_ZPVEC2 = $05
-a06 = $06
-RAM_CHARAC = $07
-RAM_ENDCHR = $08
-RAM_TRMPOS = $09
-RAM_VERCK = $0A
+zp02 = $02
+zp03 = $03
+zp04 = $04
+zp05 = $05
+zp06 = $06
+zp07 = $07
+zp08 = $08
+zp09 = $09
+zp0A = $0A
 RAM_SUBFLG = $10
 RAM_DATPTR_LO = $40
 RAM_DATPTR_HI = $41
@@ -30,7 +30,6 @@ RAM_LOFBUF = $FF
 ; **** ZP POINTERS **** 
 ;
 RAM_PDIR = $00
-p06 = $06
 RAM_STREND = $31
 ;
 ; **** FIELDS **** 
@@ -39,14 +38,13 @@ f0340 = $0340
 f0360 = $0360
 ; **** ABSOLUTE ADRESSES **** 
 ;
-a0315 = $0315
 aE000 = $E000
 aE008 = $E008
 aFF07 = $FF07
-aFF08 = $FF08
-aFF09 = $FF09
-aFF0A = $FF0A
-aFF0B = $FF0B
+KEYBOARD_LATCH = $FF08
+RASTER_INTERRUPT_STATUS = $FF09
+INTERRUPT_ENABLE_REGISTER = $FF0A
+RASTER_COMPARE_REGISTER = $FF0B
 ;
 ; **** POINTERS **** 
 ;
@@ -57,6 +55,7 @@ p01FF = $01FF
 p03A0 = $03A0
 pF8F0 = $F8F0
 pFF00 = $FF00
+CharacterSet = $3C00
 ;
 ; **** EXTERNAL JUMPS **** 
 ;
@@ -65,7 +64,7 @@ e4020 = $4020
 ; **** PREDEFINED LABELS **** 
 ;
 RAM_DORES = $000F
-RAM_CINV = $0314
+INTERRUPT_ROUTINE = $0314
 COLOR_RAM = $0800
 SCREEN_RAM = $0C00
 
@@ -99,24 +98,45 @@ a1022   .BYTE $04
 a1023   .BYTE $05,$01,$01
 a1026   .BYTE $B0
 a1027   .BYTE $24
-s1028   LDY #$00
+
+;------------------------------------------------------------------
+; AdvanceBackgroundAnimation
+; Perform the next in a set sequence of subroutines, listed below.
+; I suspect this is an animation routine.
+;------------------------------------------------------------------
+AdvanceBackgroundAnimation
+        LDY #$00
         LDA a17E2
         AND #$07
         TAY 
+        ; Use the value of Y (0-7) to pick the subroutine to run.
         LDA f1041,Y
         STA a103F
         LDA f1049,Y
         STA a1040
-        JMP (a103F) ; $1051
+        JMP (a103F) ; $1051 at first pass.
 
 a103F   .BYTE $51
 a1040   .BYTE $10
+
+; This is the set of subroutines to cycle through:
+; ResetAnimationState ($1051)
+; s1208 ($1208)
+; s126A ($126A)
+; ResetAnimationState ($1051)
+; s12BF ($12BF)
+; ResetAnimationState ($1051)
+; s12B3 ($12B3)
+; s1208 ($1208)
 f1041   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
 f1049   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
 
-;$1051
+;------------------------------------------------------------------
+;ResetAnimationState
+;------------------------------------------------------------------
+ResetAnimationState
         LDY #$00
-        JSR s12CB
+        JSR ResetDynamicCharset
         DEC a1019
         BNE b106B
         LDA a101A
@@ -239,6 +259,9 @@ b10AC   LDA a101E
 b116F   RTS 
 
 a1171   =*+$01
+;------------------------------------------------------------------
+;s1170
+;------------------------------------------------------------------
 s1170   LDA aE008
         INC a1171
         RTS 
@@ -304,16 +327,16 @@ j11E7   TYA
         TAY 
         PLA 
         TAX 
-        JSR s1318
+        JSR UpdateDynamicCharset
         PLA 
         TAY 
         RTS 
 
-a11FD   BRK #$00
-f11FF   BRK #$08
-        BPL b121B
-        JSR s3028
-        SEC 
+;------------------------------------------------------------------
+;s1208
+;------------------------------------------------------------------
+a11FD   .BYTE $00,$00
+f11FF   .BYTE $00,$08,$10,$18,$20,$28,$30,$38
 a1207   .BYTE $02
 s1208   DEC a1207
         BEQ b120E
@@ -321,7 +344,7 @@ s1208   DEC a1207
 
 b120E   LDA #$02
         STA a1207
-        JSR s12CB
+        JSR ResetDynamicCharset
         LDX #$07
 b1218   INC f11FF,X
 b121B   LDA f11FF,X
@@ -342,13 +365,16 @@ b121B   LDA f11FF,X
         BPL b1218
         RTS 
 
+;------------------------------------------------------------------
+;s126a
+;------------------------------------------------------------------
 f123A   .BYTE $00,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00,$00
 f124A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $08,$07,$06,$05,$04,$03,$02,$01
 f125A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $08,$07,$06,$05,$04,$03,$02,$01
-s126A   JSR s12CB
+s126A   JSR ResetDynamicCharset
         LDX #$0F
 b126F   DEC f124A,X
         BNE b1285
@@ -372,6 +398,9 @@ b1293   TAX
         BPL b126F
         RTS 
 
+;------------------------------------------------------------------
+;s129F
+;------------------------------------------------------------------
 a129E   .BYTE $00
 s129F   LDA a129E
         BEQ b12AA
@@ -381,30 +410,45 @@ s129F   LDA a129E
         TAX 
         PLA 
         TAY 
-b12AA   JSR s1318
+b12AA   JSR UpdateDynamicCharset
         LDA #$00
         STA $FF15    ;Background color register
         RTS 
 
+;------------------------------------------------------------------
+;s12B3
+;------------------------------------------------------------------
+s12B3
         LDA #$01
         STA a129E
         JSR s126A
         DEC a129E
         RTS 
 
+;------------------------------------------------------------------
+;s12BF
+;------------------------------------------------------------------
+s12BF
         LDA #$01
         STA a129E
         JSR s1208
         DEC a129E
         RTS 
 
-s12CB   LDX #$7F
-        LDA a12D7
-b12D0   STA f3C78,X
+;------------------------------------------------------------------
+;ResetDynamicCharset
+;------------------------------------------------------------------
+ResetDynamicCharset
+        LDX #$7F ; 127 bytes, i.e. 16 characters
+        LDA a12D7 ;$FF
+b12D0   STA startOfDynamicCharset,X
         DEX 
         BPL b12D0
         RTS 
 
+;------------------------------------------------------------------
+;UpdateDynamicCharset
+;------------------------------------------------------------------
 a12D7   .BYTE $FF
 f12D8   .BYTE $00,$02,$04,$06,$20,$22,$24,$26
         .BYTE $40,$42,$44,$46,$60,$62,$64,$66
@@ -414,30 +458,34 @@ f12F8   .BYTE $40,$10,$04,$01,$40,$10,$04,$01
         .BYTE $40,$10,$04,$01,$40,$10,$04,$01
 f1308   .BYTE $3F,$CF,$F3,$FC,$3F,$CF,$F3,$FC
         .BYTE $3F,$CF,$F3,$FC,$3F,$CF,$F3,$FC
-s1318   LDA a12D7
+UpdateDynamicCharset
+        LDA a12D7
         BNE b1337
         LDA f12D8,Y
         CLC 
         ADC f12E8,X
         TAY 
-        LDA f3C78,Y
+        LDA startOfDynamicCharset,Y
         ORA f12F8,X
-        STA f3C78,Y
+        STA startOfDynamicCharset,Y
         LDX a2CFE
         BNE b1336
-        STA f3C79,Y
+        STA startOfDynamicCharset+$01,Y
 b1336   RTS 
 
 b1337   LDA f12D8,Y
         CLC 
         ADC f12E8,X
         TAY 
-        LDA f3C78,Y
+        LDA startOfDynamicCharset,Y
         AND f1308,X
-        STA f3C78,Y
-        STA f3C79,Y
+        STA startOfDynamicCharset,Y
+        STA startOfDynamicCharset+$01,Y
         RTS 
 
+;------------------------------------------------------------------
+;s134C
+;------------------------------------------------------------------
 s134C   LDA #>SCREEN_RAM
         STA RAM_LOFBUF ;LOFBUF  
         LDA #<SCREEN_RAM
@@ -459,31 +507,40 @@ b1356   LDA RAM_SEDT2 ;SEDT2   Editor temporary use
         BNE b1356
         RTS 
 
-s1373   LDX RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        LDY RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+;------------------------------------------------------------------
+;s1373
+;------------------------------------------------------------------
+s1373   LDX zp03 ;ZPVEC1  Temp (renumber)
+        LDY zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f0340,X
-        STA a06
+        STA zp06
         LDA f0360,X
-        STA RAM_CHARAC ;CHARAC  Search character
-        LDA (p06),Y
+        STA zp07 ;CHARAC  Search character
+        LDA (zp06),Y
         RTS 
 
-j1384   LDX RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        LDY RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+;------------------------------------------------------------------
+;j1384
+;------------------------------------------------------------------
+j1384   LDX zp03 ;ZPVEC1  Temp (renumber)
+        LDY zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f0340,X
-        STA a06
+        STA zp06
         LDA f0360,X
-        STA RAM_CHARAC ;CHARAC  Search character
-        LDA a04
-        STA (p06),Y
-        LDA RAM_CHARAC ;CHARAC  Search character
+        STA zp07 ;CHARAC  Search character
+        LDA zp04
+        STA (zp06),Y
+        LDA zp07 ;CHARAC  Search character
         SEC 
         SBC #$04
-        STA RAM_CHARAC ;CHARAC  Search character
-        LDA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
-        STA (p06),Y
+        STA zp07 ;CHARAC  Search character
+        LDA zp05 ;ZPVEC2  Temp (renumber)
+        STA (zp06),Y
         RTS 
 
+;------------------------------------------------------------------
+;s14A4
+;------------------------------------------------------------------
 f13A2   .BYTE $FF
 f13A3   .BYTE $FF
 f13A4   .BYTE $FF
@@ -526,6 +583,7 @@ f1482   .BYTE $00,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00,$00
 a14A2   .BYTE $00
 a14A3   .BYTE $00
+
 s14A4   LDX a14A3
         LDA a14A2
         CMP #$20
@@ -548,6 +606,9 @@ b14C6   INC a14A2
         TXA 
         RTS 
 
+;------------------------------------------------------------------
+;s14CB
+;------------------------------------------------------------------
 s14CB   LDX #$00
 b14CD   LDA f13A2,X
         BMI b14D9
@@ -561,6 +622,9 @@ b14D9   INX
         BNE b14CD
         RTS 
 
+;------------------------------------------------------------------
+;s14E1
+;------------------------------------------------------------------
 a14DF   .BYTE $00
 a14E0   .BYTE $00
 s14E1   LDY f13E2,X
@@ -579,6 +643,9 @@ b1514   DEC a15CD
         BEQ b1529
 b1519   RTS 
 
+;------------------------------------------------------------------
+;s151A
+;------------------------------------------------------------------
 s151A   LDA a15CF
         BEQ b1514
         LDA a14A2
@@ -664,6 +731,9 @@ b15B8   LDA a15CC
         STA a15CE
         RTS 
 
+;------------------------------------------------------------------
+;s1741
+;------------------------------------------------------------------
 a15CB   .BYTE $00
 a15CC   .BYTE $00
 a15CD   .BYTE $01
@@ -807,18 +877,18 @@ RAM_BMLUM   =*+$02
 
 s1804   LDA f13A2,X
         PHA 
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
         PHA 
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA f1442,X
         CLC 
-        ADC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        ADC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f1442,X
         CLC 
-        ADC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        ADC zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s18AD
@@ -826,29 +896,29 @@ s1804   LDA f13A2,X
         PHA 
         SEC 
         SBC f1442,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s18AD
         PLA 
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         PLA 
         PHA 
         SEC 
         SBC f1442,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         PHA 
         SEC 
         SBC f1442,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s18AD
         PLA 
         CLC 
         ADC f1442,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         PLA 
         SEC 
         SBC f1442,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JMP s18AD
 
 j185B   DEC f1442,X
@@ -856,45 +926,45 @@ j185B   DEC f1442,X
 j1860   LDA #$00
         STA a36A2
         LDA #$71
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
         CLC 
         ADC f1442,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$6F
-        STA a04
+        STA zp04
         JSR s18AD
         LDA f13A2,X
         CLC 
         ADC f1442,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC a04
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC zp04
         JSR s18AD
         LDA f13C2,X
         SEC 
         SBC f1442,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        INC a04
+        STA zp03 ;ZPVEC1  Temp (renumber)
+        INC zp04
         JSR s18AD
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC a04
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC zp04
         JMP s18AD
 
 b18AC   RTS 
 
-s18AD   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+s18AD   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STX a18DE
         BMI b18AC
         CMP #$28
         BPL b18AC
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         BMI b18AC
         CMP #$18
         BPL b18AC
@@ -928,9 +998,9 @@ s18E3   TYA
         TXA 
         PHA 
         LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s33E1
         PLA 
         TAX 
@@ -988,18 +1058,18 @@ b1985   NOP
         TAY 
         LDA f1971,Y
         ORA #$0E
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA #$EC
-        STA a04
+        STA zp04
         LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JMP j1384
 
 s19AC   STY a19C1
         LDY #$1F
-b19B1   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+b19B1   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
 b19B3   CMP f13A2,Y
         BEQ b19C2
         DEY 
@@ -1009,7 +1079,7 @@ j19BE   LDA #$00
         RTS 
 
 a19C1   .BYTE $00
-b19C2   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+b19C2   LDA zp03 ;ZPVEC1  Temp (renumber)
         CMP f13C2,Y
         BEQ b19D2
         DEY 
@@ -1168,38 +1238,38 @@ b1B13   RTS
         LDA #$01
         STA a36A2
         LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         JSR s33E1
         PLA 
         TAX 
         LDA #$ED
-        STA a04
+        STA zp04
         INC f1442,X
         LDA f1442,X
         AND #$0F
         TAY 
         LDA f1971,Y
         ORA f1422,X
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA f1482,X
         AND #$07
 j1B4E   TAY 
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC f3872,Y
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC f387A,Y
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         BMI b1B6D
         CMP #$18
         BPL b1B6D
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         BMI b1B6D
         CMP #$28
         BMI b1B79
@@ -1225,7 +1295,7 @@ b1B79   TXA
 b1B8F   AND #$F0
         CMP #$E0
         BNE b1BA0
-        LDA (p06),Y
+        LDA (zp06),Y
         AND #$08
         BNE b1BA0
         LDA #$01
@@ -1233,9 +1303,9 @@ b1B8F   AND #$F0
 b1BA0   JSR j1384
         PLA 
         TAX 
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STA f13A2,X
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         STA f13C2,X
 b1BAF   RTS 
 
@@ -1244,9 +1314,9 @@ b1BAF   RTS
         LDA f1442,X
         BNE b1BD3
         LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         TXA 
@@ -1311,9 +1381,9 @@ b1C3B   STA a1BF8
         RTS 
 
 s1C40   LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         TXA 
@@ -1327,9 +1397,9 @@ s1C40   LDA f13A2,X
 
 a1C5C   .BYTE $00
 j1C5D   LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         JSR s1373
@@ -1343,10 +1413,10 @@ j1C5D   LDA f13A2,X
 b1C77   AND #$F0
         CMP #$E0
         BNE b1C90
-        LDA (p06),Y
+        LDA (zp06),Y
         AND #$08
         BNE b1C90
-        LDA a04
+        LDA zp04
         AND #$F0
         CMP #$D0
         BEQ b1C90
@@ -1403,9 +1473,9 @@ b1CC7   RTS
         LDA #$00
         STA a1D0E
         LDA f1422,X
-        STA a04
+        STA zp04
         LDA #$5C
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b1D09   LDY #$03
@@ -1423,11 +1493,11 @@ b1D19   RTS
         LDA #$01
         STA f1402,X
         LDA #$EC
-        STA a04
+        STA zp04
         JSR s18D7
         AND #$70
         ORA #$02
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA #$00
         STA a1D0E
         JSR j1C5D
@@ -1489,26 +1559,26 @@ a1DAF   .BYTE $00
 b1DB0   CMP #$02
         BEQ b1E0A
         LDA f1462,X
-        STA a04
+        STA zp04
         LDA f1482,X
         STA a1DAF
         TAY 
         LDA f1971,Y
         ORA #$0A
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDY f1442,X
         LDA f13A2,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-j1DD4   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 ;ZPVEC1  Temp (renumber)
+j1DD4   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC f3872,Y
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC f387A,Y
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         TYA 
@@ -1578,9 +1648,9 @@ b1E5A   RTS
         ASL 
         AND #$70
         ORA #$0C
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA #$EC
-        STA a04
+        STA zp04
         LDY f1422,X
         LDA f2C9E,Y
         CLC 
@@ -1640,9 +1710,9 @@ b1ED4   RTS
         LDA #$00
         STA a1D0E
         LDA #$7F
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA f1422,X
-        STA a04
+        STA zp04
         JMP j1C5D
 
 b1F06   LDY #$03
@@ -1711,7 +1781,7 @@ b1F7A   LDA a355C,X
         BPL b1F7A
         LDX #$03
 b1F86   LDY f1F97,X
-        LDA f2C65,Y
+        LDA colorSequence,Y
         STA f1F9B,X
         DEX 
         BPL b1F86
@@ -1801,7 +1871,7 @@ b200F   RTS
         CMP #$28
         BPL b2053
 j2032   LDA f1422,X
-        STA a04
+        STA zp04
         LDA f13A2,X
         ASL 
         ASL 
@@ -1809,7 +1879,7 @@ j2032   LDA f1422,X
         ASL 
         AND #$70
         ORA f1442,X
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA #$EC
         STA a1D0E
         JSR j1C5D
@@ -1860,7 +1930,7 @@ b209C   LDA #$C0
         CMP #$FF
         BEQ b20AE
         LDX a2086
-        STA f2C65,X
+        STA colorSequence,X
 b20AE   LDA a2086
         CLC 
         ADC #$01
@@ -1871,10 +1941,10 @@ b20BA   STA a2086
         TAX 
         AND #$07
         TAY 
-        LDA f2C65,X
+        LDA colorSequence,X
         STA a2094
         LDA f2088,Y
-        STA f2C65,X
+        STA colorSequence,X
         LDA a2093
         BEQ b20D4
         BNE b20F5
@@ -1904,7 +1974,7 @@ b20FB   AND #$07
         ASL 
         AND #$70
         ORA f2088,Y
-        STA f2C65,X
+        STA colorSequence,X
         TXA 
         CLC 
         ROR 
@@ -1919,7 +1989,7 @@ b2120   LDA #$01
         STA a1F29
         LDX a2087
         LDA a2095
-        STA f2C65,X
+        STA colorSequence,X
         LDA #$00
         STA a2093
         RTS 
@@ -1930,7 +2000,7 @@ j2134   DEC a2093
 
 b213A   LDX a2087
         LDA a2095
-        STA f2C65,X
+        STA colorSequence,X
         RTS 
 
         LDA #$DD
@@ -1977,9 +2047,9 @@ b219C   LDA f1482,X
         LDA f1422,X
         BNE b21AB
 b21A8   LDA f1442,X
-b21AB   STA a04
+b21AB   STA zp04
         LDA f1462,X
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b21B5   LDA f1482,X
@@ -2175,7 +2245,7 @@ b23DE   LDA f241A,Y
         TAY 
         LDX #$07
 b23E4   LDA f2420,X
-        STA f2C65,Y
+        STA colorSequence,Y
         INY 
         DEX 
         BPL b23E4
@@ -2186,7 +2256,7 @@ b23E4   LDA f2420,X
         STA RAM_DATPTR_LO
         LDX #$20
 b23FC   LDY #$00
-        LDA a2F81
+        LDA currentJoystick1Reading
         AND #$40
         BEQ b240F
 b2405   DEY 
@@ -2202,10 +2272,7 @@ b240F   LDX #$F8
         JMP JumpToInitialize
 
 f241A   .BYTE $00,$05,$09,$0D,$11,$15
-f2420   .BYTE $06,$26
-        LSR a06
-        ASL a46
-        ROL a06
+f2420   .BYTE $06,$26,$46,$06,$06,$46,$26,$06
 
 HiScoreTitle
        .TEXT "VOIDRUNNER FIVE BEST GAMES AND SCORERS /"
@@ -2297,8 +2364,8 @@ j2505   LDA (RAM_DATPTR_LO),Y
         BNE b250F
         LDA #$20
         STA (RAM_DATPTR_LO),Y
-b250F   LDA a2F81
-        AND #$04
+b250F   LDA currentJoystick1Reading
+        AND #$04 ; Left
         BNE b2522
         LDA (RAM_DATPTR_LO),Y
         SEC 
@@ -2306,8 +2373,8 @@ b250F   LDA a2F81
         JSR s255D
         STA (RAM_DATPTR_LO),Y
         BNE b2533
-b2522   LDA a2F81
-        AND #$08
+b2522   LDA currentJoystick1Reading
+        AND #$08 ; Right
         BNE b2546
         LDA (RAM_DATPTR_LO),Y
         CLC 
@@ -2324,11 +2391,11 @@ b253B   DEC RAM_FORPNT ;FORPNT  Pointer: Index variable for FOR/NEXT
         BNE b2537
         JMP j2505
 
-b2546   LDA a2F81
-        AND #$40
+b2546   LDA currentJoystick1Reading
+        AND #$40 ; Fire
         BNE j2505
-b254D   LDA a2F81
-        AND #$4F
+b254D   LDA currentJoystick1Reading
+        AND #$4F ;Fire, Left, Right, Up or Down
         CMP #$4F
         BNE b254D
         PLA 
@@ -2336,6 +2403,9 @@ b254D   LDA a2F81
         STA TopScoreText,X
         RTS 
 
+;------------------------------------------------------------------
+;s255D
+;------------------------------------------------------------------
 s255D   CMP #$21
         BNE b2564
         LDA #$41
@@ -2641,9 +2711,12 @@ b2AFE   STA f13A2,X
         RTS 
 
 Initialize
+        ; Set background to black.
         LDA #$00
         STA $FF15    ;Background color register
         STA $FF19    ;Color register #4
+
+        ; Initialize some variables
         STA a3196
         STA a15CE
         STA a17E2
@@ -2659,33 +2732,49 @@ Initialize
         STA a2BF2
         LDA #$0C
         STA a2BF3
-        SEI 
+
+        SEI   ; Stop interrupts while setting the interrupts registers
+
         LDA #$20
         STA a30F8
-        LDA #<p2BF4
-        STA RAM_CINV ;CINV    IRQ Ram Vector
-        LDA #>p2BF4
-        STA a0315
-        LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
-        AND #$FB
-        STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
 
-        ; Load the custom character set from $3C00
+        ; When an interrupt happens INTERRUPT_ROUTINE is checked for a
+        ; user routine to perform. Set it to RoutinToPerformAtInterrupt.
+        LDA #<RoutinToPerformAtInterrupt
+        STA INTERRUPT_ROUTINE
+        LDA #>RoutinToPerformAtInterrupt
+        STA INTERRUPT_ROUTINE + $01
+
+        ; Clear bit 2 of $FF12 so that custom character sets are enabled.
+        ; The order of bits is: 7 6 5 4 3 2 1 0
+        LDA $FF12
+        AND #$FB
+        STA $FF12
+
+        ; Load the custom character set from CharacterSet (see charset.asm).
+        ; Do this by storing the address of the custom character
+        ; set ($3C00) at $FF13.
         LDA $FF13    ;Bit 0 :    Clock status
         AND #$03
         ORA #$3C
         STA $FF13    ;Bit 0 :    Clock status
 
+        ; Enable raster interrupts by setting bit 1 of $FF0A to 1.
         LDA #$02
-        STA aFF0A
-        STA aFF09
+        STA INTERRUPT_ENABLE_REGISTER
+        STA RASTER_INTERRUPT_STATUS
+
+        ; Set the position on the screen at which the raster interrupt occurs.
         LDA #$40
-        STA aFF0B
+        STA RASTER_COMPARE_REGISTER
         LDA #$00
-        STA a2BF0
-        CLI 
+        STA interruptCount
+
+        CLI  ; Start the interrupts going again.
+
         JSR ClearScreen
-b2B73   LDA a2F81
+
+b2B73   LDA currentJoystick1Reading
         AND #$40
         BEQ b2B73
         JSR s2CFF
@@ -2701,40 +2790,40 @@ b2B86   JSR s3AD9
         BNE b2B9B
         JMP DisplayHiScoreScreen
 
-b2B9B   LDA a2F81
+b2B9B   LDA currentJoystick1Reading
         AND #$40
         BNE b2B86
         JSR s2D51
         JMP j2F98
 
 s2BA8   LDA #>COLOR_RAM + $000F
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
 s2BAC   LDA #<COLOR_RAM + $000F
-        STA a04
+        STA zp04
         LDA #$04
-        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
-        STA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
+        STA zp09 ;TRMPOS  Screen column from last TAB
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         PHA 
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         PHA 
 b2BBC   JSR j1384
-        INC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        INC a04
-        DEC RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
+        INC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        INC zp04
+        DEC zp08 ;ENDCHR  Flag: scan for quote at end of string
         BNE b2BBC
         PLA 
         PHA 
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$04
-        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
-        INC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        DEC RAM_TRMPOS ;TRMPOS  Screen column from last TAB
+        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
+        INC zp03 ;ZPVEC1  Temp (renumber)
+        DEC zp09 ;TRMPOS  Screen column from last TAB
         BNE b2BBC
         PLA 
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         PLA 
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         RTS 
 
 ClearScreen
@@ -2749,32 +2838,45 @@ b2BE0   STA SCREEN_RAM,X ;TEDSCN  TED character pointers
         BNE b2BE0
         RTS 
 
-a2BF0   .BYTE $FF
+interruptCount   .BYTE $FF
 a2BF1   .BYTE $12
 a2BF2   .BYTE $3A
 a2BF3   .BYTE $0C
-p2BF4   LDA aFF09
+RoutinToPerformAtInterrupt
+        LDA RASTER_INTERRUPT_STATUS
         AND #$02
-        BNE b2C01
+        BNE ProcessRasterInterrupt
+        ; It's not a raster interrupt, so bail.
+        ; Restore the stack when returning from an interrupt
         PLA 
         TAY 
         PLA 
         TAX 
         PLA 
-        RTI 
+        RTI ; Retuurn from the Interrupt
 
-b2C01   LDX a2BF0
-        LDA f2C65,X
+ProcessRasterInterrupt
+        LDX interruptCount
+
+        ; Change the background color from the current byte
+        ; in the color sequence.
+        LDA colorSequence,X
         STA $FF15    ;Background color register
+
+        ; The sequence is 50 bytes long. Reset it if necessary.
         CPX #$32
-        BEQ b2C25
-        LDA aFF0B
+        BEQ ResetInterruptCount
+
+        LDA RASTER_COMPARE_REGISTER
         CLC 
         ADC #$04
-        STA aFF0B
-j2C17   LDA #$02
-        STA aFF09
-        INC a2BF0
+        STA RASTER_COMPARE_REGISTER
+
+FinishProcessing_RI
+        ; Reset raster interrupt
+        LDA #$02
+        STA RASTER_INTERRUPT_STATUS
+        INC interruptCount
         PLA 
         TAY 
         PLA 
@@ -2782,32 +2884,39 @@ j2C17   LDA #$02
         PLA 
         RTI 
 
-b2C25   LDX #$FF
-        STX a2BF0
+ResetInterruptCount
+        LDX #$FF
+        STX interruptCount
         LDA #$02
-        STA aFF0B
+        STA RASTER_COMPARE_REGISTER
+
+        ; Set the background to black
         LDA #$00
-        JSR s354D
+        JSR WasteAFewCycles
         STA $FF15    ;Background color register
-        LDA a3196
+
+        ; Depending on the value in a3196 this will branch execution
+        ; to s319B($319B) or s31A1($31A1)
+        LDA a3196 ; Can be $00, $01 or $02
         BEQ b2C4E
-        LDX a3196
+        LDX a3196 ; Can be $01 or $02
         LDA a3196,X
         STA a31CD
         LDA f3198,X
         STA a31CE
-        JMP (a31CD)
+        JMP (a31CD) ; can be s319B or s31A1
 
-b2C4E   JSR s1028
+b2C4E   JSR AdvanceBackgroundAnimation
         JSR s2DE4
         JSR s2E43
         JSR s2ED9
-        JSR s2F82
+        JSR CheckJoystick1
         LDA #$00
         STA $FF15    ;Background color register
-        JMP j2C17
+        JMP FinishProcessing_RI
 
-f2C65   .BYTE $73,$04,$14,$24,$34,$44,$54,$64
+colorSequence
+        .BYTE $73,$04,$14,$24,$34,$44,$54,$64
 f2C6D   .BYTE $4D
 f2C6E   .BYTE $36,$4D,$5D,$6D,$7D,$7E,$7D,$7E
         .BYTE $6E
@@ -2819,6 +2928,7 @@ a2C8C   .BYTE $4D
 f2C8D   .BYTE $64,$54
 f2C8F   .BYTE $44,$34,$24,$14,$04,$73,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00
+
 f2C9E   .BYTE $10,$11,$13,$14,$16,$17,$18,$1A
         .BYTE $1B,$1C,$1D,$1E,$1E,$1F,$1F,$1F
         .BYTE $1F,$1F,$1F,$1F,$1E,$1E,$1D,$1C
@@ -2832,9 +2942,10 @@ f2C9E   .BYTE $10,$11,$13,$14,$16,$17,$18,$1A
         .BYTE $00,$02,$04,$06,$08,$0A,$0C,$0E
         .BYTE $20,$22,$24,$26,$28,$2A,$2C,$2E
 a2CFE   .BYTE $00
+
 s2CFF   LDA #$00
 s2D01   LDX #$32
-b2D03   STA f2C65,X
+b2D03   STA colorSequence,X
         DEX 
         BPL b2D03
         RTS 
@@ -2918,7 +3029,7 @@ b2DEA   LDA #$06
 f2E02   .BYTE $00,$10,$20,$30,$40,$50,$60,$70
 s2E0A   LDX #$00
 b2E0C   LDA f2E02,X
-        STA f2C65,X
+        STA colorSequence,X
         LDA f2E02,X
         EOR #$70
         STA f2C8D,X
@@ -2933,9 +3044,9 @@ b2E21   LDA f2EB3,X
         RTS 
 
 j2E2B   LDX #$07
-b2E2D   LDA f2C65,X
+b2E2D   LDA colorSequence,X
         JSR s2E60
-        STA f2C65,X
+        STA colorSequence,X
         LDA f2C8D,X
         JSR s2E60
         STA f2C8D,X
@@ -2974,35 +3085,35 @@ b2E6A   PLA
         RTS 
 
 s2E73   LDA #$00
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$FF
         STA a12D7
         LDA #$04
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-b2E80   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 ;ZPVEC1  Temp (renumber)
+b2E80   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         PHA 
         JSR s2BA8
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$1C
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
         PLA 
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC #$04
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         CMP #$14
         BNE b2E80
         RTS 
@@ -3093,18 +3204,28 @@ j2F53   LDA a2ED6
         STA a2ED3
 b2F80   RTS 
 
-a2F81   .BYTE $7F
-s2F82   SEI 
+currentJoystick1Reading   .BYTE $7F
+
+;------------------------------------------------------------------
+; Check for joystick input
+;------------------------------------------------------------------
+CheckJoystick1
+        SEI 
         LDX #$FA
-b2F85   STX aFF08
-        LDA aFF08
-        STX aFF08
-        CMP aFF08
+        ; Get a consistent read from the joystick. This means
+        ; getting the same reading twice in a row.
+b2F85   STX KEYBOARD_LATCH
+        LDA KEYBOARD_LATCH
+        STX KEYBOARD_LATCH
+        CMP KEYBOARD_LATCH
         BNE b2F85
         CLI 
-        STA a2F81
+        STA currentJoystick1Reading
         RTS 
 
+;------------------------------------------------------------------
+;
+;------------------------------------------------------------------
 j2F98   LDA $FF11    ;Bits 0-3 : Volume control
         LDY #$01
         STY a33CF
@@ -3126,7 +3247,7 @@ b2FB5   STA COLOR_RAM,X ;TEDATR  TED attribute bytes
         CMP #$FF
         BEQ b2FD1
         LDY a2086
-        STA f2C65,Y
+        STA colorSequence,Y
 b2FD1   LDA #$FF
         STA a2094
         LDA #$00
@@ -3218,32 +3339,32 @@ a30AE   .TEXT $00
 s30AF   STX a30AE
         JSR s30FA
         LDA a3098
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a3099
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDY #$00
-b30C1   LDA (RAM_TRMPOS),Y ;TRMPOS  Screen column from last TAB
+b30C1   LDA (zp09),Y ;TRMPOS  Screen column from last TAB
         PHA 
         LDA #$08
-        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
+        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
 b30C8   PLA 
         ROL 
         PHA 
         BCC b30E0
         LDA a30F8
-        STA a04
+        STA zp04
         LDA a30F9
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         STY a30F7
         JSR j1384
         LDY a30F7
-b30E0   INC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
+b30E0   INC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC zp08 ;ENDCHR  Flag: scan for quote at end of string
         BNE b30C8
         PLA 
-        INC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        INC zp03 ;ZPVEC1  Temp (renumber)
         LDA a3098
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         INY 
         CPY #$08
         BNE b30C1
@@ -3253,19 +3374,19 @@ b30E0   INC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
 a30F7   .BYTE $00
 a30F8   .BYTE $20
 a30F9   .BYTE $00
-s30FA   LDY #<p3C00
-        STY RAM_TRMPOS ;TRMPOS  Screen column from last TAB
-        LDY #>p3C00
-        STY RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
+s30FA   LDY #<CharacterSet
+        STY zp09 ;TRMPOS  Screen column from last TAB
+        LDY #>CharacterSet
+        STY zp0A ;VERCK   Flag: 0 = load 1 - verify
         TAY 
         BEQ b3115
-b3105   LDA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
+b3105   LDA zp09 ;TRMPOS  Screen column from last TAB
         CLC 
         ADC #$08
-        STA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
-        LDA RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
+        STA zp09 ;TRMPOS  Screen column from last TAB
+        LDA zp0A ;VERCK   Flag: 0 = load 1 - verify
         ADC #$00
-        STA RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
+        STA zp0A ;VERCK   Flag: 0 = load 1 - verify
         DEY 
         BNE b3105
 b3115   RTS 
@@ -3291,7 +3412,7 @@ b3128   LDA $FF11    ;Bits 0-3 : Volume control
         BEQ b317E
         LDA #$00
         LDX a3117
-        STA f2C65,X
+        STA colorSequence,X
         TXA 
         CLC 
         ADC a311A
@@ -3299,7 +3420,7 @@ b3128   LDA $FF11    ;Bits 0-3 : Volume control
         STX a3117
         LDY a31CF
         LDA f2EB3,Y
-        STA f2C65,X
+        STA colorSequence,X
         CPX a3116
         BEQ b3162
         LDA a3117
@@ -3322,7 +3443,7 @@ b3162   LDA a3116
 
 b317E   LDX a3116
         LDA a3195
-        STA f2C65,X
+        STA colorSequence,X
         LDA #$00
         STA a3097
         LDA $FF11    ;Bits 0-3 : Volume control
@@ -3332,15 +3453,17 @@ b317E   LDX a3116
 
 a3195   .BYTE $27
 a3196   .BYTE $00,$9B
-f3198   .BYTE $A1
-        AND (RAM_STREND),Y ;STREND  Pointer: end of BASIC arrays (+1)
-        JSR s311B
-        JMP j2C17
+f3198   .BYTE $A1,$31,$31
 
+s319B
+        JSR s311B
+        JMP FinishProcessing_RI
+
+s31A1
         LDA #$00
         STA $FF15    ;Background color register
-        JSR s2F82
-        JSR s1028
+        JSR CheckJoystick1
+        JSR AdvanceBackgroundAnimation
         LDA #$00
         STA $FF15    ;Background color register
         LDA a234C
@@ -3353,7 +3476,7 @@ b31BC   JSR s36D7
         BNE j31CA
         JSR s3988
         JSR s1A2D
-j31CA   JMP j2C17
+j31CA   JMP FinishProcessing_RI
 
 a31CD   .BYTE $00
 a31CE   .BYTE $00
@@ -3443,11 +3566,11 @@ b327E   STA a30AE
         ORA a30AE
         STA $FF11    ;Bits 0-3 : Volume control
         LDX #$32
-b3290   LDA f2C65,X
+b3290   LDA colorSequence,X
         BEQ b32B1
         AND #$0F
         STA a30AE
-        LDA f2C65,X
+        LDA colorSequence,X
         AND #$F0
         BEQ b32A6
         SEC 
@@ -3456,7 +3579,7 @@ b3290   LDA f2C65,X
 b32A6   LDA #$00
         STA a30AE
 b32AB   ORA a30AE
-        STA f2C65,X
+        STA colorSequence,X
 b32B1   DEX 
         BPL b3290
         RTS 
@@ -3485,14 +3608,14 @@ b32E0   LDA a3097
         STA a3196
         JSR s351B
         LDA #$05
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDX #$00
         LDY #$00
 b32F8   DEX 
         BNE b32F8
         DEY 
         BNE b32F8
-        DEC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         BNE b32F8
         STX a12D7
         INC a2CFE
@@ -3524,7 +3647,7 @@ b3335   JSR s17C2
         LDX #$03
 b334D   LDA f1F9B,X
         LDY f1F97,X
-        STA f2C65,Y
+        STA colorSequence,Y
         DEX 
         BPL b334D
         LDA a15CC
@@ -3571,7 +3694,7 @@ b33A5   LDA #$08
         ASL 
         ASL 
         ORA a33CE
-        STA f2C65,X
+        STA colorSequence,X
         PHA 
         TXA 
         EOR #$07
@@ -3586,17 +3709,17 @@ b33A5   LDA #$08
 
 a33CE   .BYTE $00
 a33CF   .BYTE $00
-s33D0   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+s33D0   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         BPL b33D5
 b33D4   RTS 
 
 b33D5   CMP #$28
         BPL b33D4
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         BMI b33D4
         CMP #$18
         BPL b33D4
-s33E1   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+s33E1   LDA zp03 ;ZPVEC1  Temp (renumber)
         CMP #$18
         BNE b33E8
         RTS 
@@ -3605,23 +3728,23 @@ b33E8   LDA a36A2
         BNE b33F0
         JMP j1384
 
-b33F0   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+b33F0   LDA zp03 ;ZPVEC1  Temp (renumber)
         AND #$03
         TAY 
-        LDA a04
+        LDA zp04
         PHA 
         LDA f3411,Y
-        STA a04
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp04
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         AND #$03
         CLC 
-        ADC a04
-        STA a04
+        ADC zp04
+        STA zp04
         LDA #$08
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         JSR j1384
         PLA 
-        STA a04
+        STA zp04
         RTS 
 
 f3411   .BYTE $0F,$13,$17,$1B
@@ -3645,26 +3768,26 @@ b3465   LDA f3415,X
         DEX 
         BPL b3465
         LDA #$00
-        STA a04
+        STA zp04
 b3476   LDA #$00
         STA a31CF
         TAX 
 b347C   LDA #$71
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA f3439,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
-        STX RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 ;ZPVEC1  Temp (renumber)
+        STX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
 j3487   JSR s33D0
-        LDX RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        LDX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp05 ;ZPVEC2  Temp (renumber)
         AND #$F0
         SEC 
         SBC #$10
         CMP #$F0
         BEQ b34A0
         ORA #$01
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
-        DEC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
+        DEC zp03 ;ZPVEC1  Temp (renumber)
         JMP j3487
 
 b34A0   INC f3439,X
@@ -3696,24 +3819,27 @@ f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
         .BYTE $01,$00,$01,$01,$01,$01,$01,$00
         .BYTE $00,$05,$01,$07,$00,$03,$03,$03
 
+;------------------------------------------------------------------
+;s351B
+;------------------------------------------------------------------
 s351B   LDA #$00
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$09
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
 b3525   JSR s2BAC
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CMP #$28
         BNE b3525
         LDA #$00
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC #$04
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         CMP #$18
         BNE b3525
         LDA #$F0
@@ -3722,7 +3848,11 @@ b3525   JSR s2BAC
         STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
-s354D   NOP 
+;------------------------------------------------------------------
+;WasteAFewCycles
+;------------------------------------------------------------------
+WasteAFewCycles
+        NOP 
         NOP 
         NOP 
         NOP 
@@ -3758,12 +3888,12 @@ b3569   LDX #$03
 b358F   LDA f3560,X
         BMI b35A8
         LDA a3558,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$00
-        STA a04
+        STA zp04
         STA a36A2
         LDA a355C,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s361F
 b35A8   DEX 
         BPL b358F
@@ -3776,9 +3906,9 @@ b35A8   DEX
 b35BA   LDA f3560
         BMI b35CC
         LDA a3558,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a355C,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s361F
 b35CC   DEX 
         BPL b35BA
@@ -3824,9 +3954,9 @@ b3613   DEY
 
 s361F   LDY #$07
         STX a30AE
-        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STA a36A3
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         STA a36A4
 b362E   TYA 
         STA a30F7
@@ -3839,15 +3969,15 @@ b3639   EOR #$07
         ASL 
         ASL 
         ORA #$06
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA a36A4
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         TYA 
         CLC 
         ADC a31CF
         CLC 
         ADC a36A3
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s33D0
         LDY a30F7
         LDA a36A3
@@ -3855,23 +3985,23 @@ b3639   EOR #$07
         SBC a31CF
         SEC 
         SBC a30F7
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s33D0
         LDA a36A3
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a30F7
         CLC 
         ADC a36A4
         CLC 
         ADC a31CF
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s33D0
         LDA a36A4
         SEC 
         SBC a30F7
         SEC 
         SBC a31CF
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         JSR s33D0
         LDY a30F7
         DEY 
@@ -3891,19 +4021,19 @@ s36A5   LDX #$03
 b36A7   LDA f3560,X
         BMI b36D3
         LDA a3558,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$42
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         CPX #$00
         BNE b36BD
         LDA #$75
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
 b36BD   LDA #$E0
         CLC 
         ADC f3560,X
-        STA a04
+        STA zp04
         LDA a355C,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         STX a30AE
         JSR s33D0
         LDX a30AE
@@ -3956,7 +4086,7 @@ s373D   DEC a373B
         BNE b370E
         LDA #$01
         STA a373C
-        LDA a2F81
+        LDA currentJoystick1Reading
         EOR #$FF
         AND #$0F
         TAY 
@@ -4035,9 +4165,9 @@ b37DA   LDA f3733
         BPL b37D9
         LDX #$03
 b37EE   LDA a3558,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a355C,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s3832
@@ -4047,36 +4177,36 @@ j3803   LDA #$00
         STA a36A2
         LDX #$03
 b380A   LDA f3733,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STA a3558,X
         LDA f3737,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         STA a355C,X
         LDA f382E,X
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA #$E0
         CLC 
         ADC f3560,X
-        STA a04
+        STA zp04
         JSR s3832
         DEX 
         BPL b380A
 b382D   RTS 
 
 f382E   .BYTE $75,$42,$42,$42
-s3832   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+s3832   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STX a30AE
         BMI b382D
         CMP #$28
         BPL b382D
-        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDA zp03 ;ZPVEC1  Temp (renumber)
         BMI b382D
         CMP #$18
         BPL b382D
         JSR s1373
         AND #$80
         BEQ b386B
-        LDA (p06),Y
+        LDA (zp06),Y
         AND #$F0
         CMP #$D0
         BNE b385A
@@ -4085,7 +4215,7 @@ s3832   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
 
 b385A   CMP #$E0
         BNE b3866
-        LDA (p06),Y
+        LDA (zp06),Y
         AND #$0C
         CMP #$0C
         BNE b386B
@@ -4119,7 +4249,7 @@ b38AF   RTS
 b38B0   JSR s38DF
         JMP j38A7
 
-s38B6   LDA a2F81
+s38B6   LDA currentJoystick1Reading
         AND #$40
         BNE b38AF
         LDA a3558,X
@@ -4137,9 +4267,9 @@ s38B6   LDA a2F81
         RTS 
 
 s38DF   LDA f388A,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f388E,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s3968
@@ -4171,19 +4301,19 @@ b3927   ASL
         ASL 
         AND #$70
         ORA #$07
-        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        STA zp05 ;ZPVEC2  Temp (renumber)
         LDA f3882,Y
-        STA a04
+        STA zp04
         LDA f388A,X
-        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f388E,X
-        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA zp03 ;ZPVEC1  Temp (renumber)
         STX a30AE
         JSR s1373
         LDX a30AE
         AND #$80
         BEQ b3961
-        LDA (p06),Y
+        LDA (zp06),Y
         JSR s19AC
         BEQ b3960
         BMI b3921
@@ -4203,7 +4333,7 @@ s3968   STX a30AE
         JSR s1373
         AND #$80
         BEQ b397F
-        LDA (p06),Y
+        LDA (zp06),Y
         LDX a30AE
         JSR s19AC
         BEQ b3967
@@ -4303,7 +4433,7 @@ s3A2A   DEC a3A6F
         ORA #$06
         LDX #$03
 b3A40   LDY f1F97,X
-        STA f2C65,Y
+        STA colorSequence,Y
         DEX 
         BPL b3A40
         JSR s2F2A
@@ -4392,12 +4522,12 @@ a3AD8   .BYTE $00
 s3AD9   LDA a3AD8
         BEQ b3AED
         DEC a3AD8
-        LDA a2F81
+        LDA currentJoystick1Reading
         AND #$08
         BNE b3AD7
         LDA #$00
         STA a3AD8
-b3AED   LDA a2F81
+b3AED   LDA currentJoystick1Reading
         AND #$08
         BNE b3AD7
         LDA #$F0
@@ -4416,7 +4546,7 @@ b3B13   LDA (RAM_DATPTR_LO),Y
         STA SCREEN_RAM + $0376,Y
         DEY 
         BPL b3B13
-b3B1B   LDA a2F81
+b3B1B   LDA currentJoystick1Reading
         AND #$08
         BEQ b3B1B
         LDA #$0C
