@@ -15,10 +15,10 @@ RAM_ENDCHR = $08
 RAM_TRMPOS = $09
 RAM_VERCK = $0A
 RAM_SUBFLG = $10
-a40 = $40
-RAM_DATPTR = $41
-a42 = $42
-RAM_INPPTR = $43
+RAM_DATPTR_LO = $40
+RAM_DATPTR_HI = $41
+RAM_INPPTR_LO = $42
+RAM_INPPTR_HI = $43
 a44 = $44
 a46 = $46
 RAM_OPPTR = $48
@@ -32,50 +32,14 @@ RAM_LOFBUF = $FF
 RAM_PDIR = $00
 p06 = $06
 RAM_STREND = $31
-p40 = $40
-p42 = $42
 ;
 ; **** FIELDS **** 
 ;
 f0340 = $0340
 f0360 = $0360
-f0828 = $0828
-f0900 = $0900
-f0924 = $0924
-f094C = $094C
-f09C4 = $09C4
-f09EC = $09EC
-f0A00 = $0A00
-f0A64 = $0A64
-f0A8C = $0A8C
-f0B00 = $0B00
-f0B2C = $0B2C
-f0B54 = $0B54
-f0B70 = $0B70
-f0BC0 = $0BC0
-f0BD3 = $0BD3
-f0C28 = $0C28
-f0D00 = $0D00
-f0D24 = $0D24
-f0D4C = $0D4C
-f0DC4 = $0DC4
-f0DEC = $0DEC
-f0E00 = $0E00
-f0E64 = $0E64
-f0E8C = $0E8C
-f0F00 = $0F00
-f0F2C = $0F2C
-f0F54 = $0F54
-f0F70 = $0F70
-f0F76 = $0F76
-f0FC0 = $0FC0
-f0FC7 = $0FC7
-;
 ; **** ABSOLUTE ADRESSES **** 
 ;
 a0315 = $0315
-a0FE1 = $0FE1
-a0FE3 = $0FE3
 aE000 = $E000
 aE008 = $E008
 aFF07 = $FF07
@@ -91,9 +55,6 @@ p0100 = $0100
 p0101 = $0101
 p01FF = $01FF
 p03A0 = $03A0
-p080F = $080F
-p0CA0 = $0CA0
-p0E58 = $0E58
 pF8F0 = $F8F0
 pFF00 = $FF00
 ;
@@ -105,8 +66,8 @@ e4020 = $4020
 ;
 RAM_DORES = $000F
 RAM_CINV = $0314
-RAM_TEDATR = $0800
-RAM_TEDSCN = $0C00
+COLOR_RAM = $0800
+SCREEN_RAM = $0C00
 
         * = $1001
 
@@ -141,12 +102,14 @@ s1028   LDY #$00
         STA a103F
         LDA f1049,Y
         STA a1040
-        JMP (a103F)
+        JMP (a103F) ; $1051
 
 a103F   .BYTE $51
 a1040   .BYTE $10
 f1041   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
 f1049   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
+
+;$1051
         LDY #$00
         JSR s12CB
         DEC a1019
@@ -470,9 +433,9 @@ b1337   LDA f12D8,Y
         STA f3C79,Y
         RTS 
 
-s134C   LDA #>RAM_TEDSCN
+s134C   LDA #>SCREEN_RAM
         STA RAM_LOFBUF ;LOFBUF  
-        LDA #<RAM_TEDSCN
+        LDA #<SCREEN_RAM
         STA RAM_SEDT2 ;SEDT2   Editor temporary use
         LDX #$00
 b1356   LDA RAM_SEDT2 ;SEDT2   Editor temporary use
@@ -625,26 +588,26 @@ b1529   LDA #$01
         LDA f15D3,Y
         CLC 
         ADC #$15
-        STA a40
+        STA RAM_DATPTR_LO
         LDA f15F1,Y
         ADC #$00
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY a15CE
-j1548   LDA (p40),Y
+j1548   LDA (RAM_DATPTR_LO),Y
         CMP #$23
         BNE b155A
         INY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA a15D0
         INY 
         STY a15D1
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
 b155A   CMP #$24
         BNE b156F
         DEC a15D0
         BEQ b156B
         LDY a15D1
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         JMP b156F
 
 b156B   INY 
@@ -655,7 +618,7 @@ b156F   CMP #$FD
         CMP #$FE
         BNE b1589
         INY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA a15CD
         BNE b1584
         LDA #$01
@@ -666,14 +629,14 @@ b1584   INY
 
 b1589   AND #$80
         BEQ b1595
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         AND #$7F
         STA a1513
         INY 
-b1595   LDA (p40),Y
+b1595   LDA (RAM_DATPTR_LO),Y
         STA a15CB
         INY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA a15D2
         INY 
         JSR s1BF9
@@ -1306,7 +1269,7 @@ b1BE8   LDA #$FF
 a1BF6   .BYTE $FF
 a1BF7   .BYTE $FF
 a1BF8   .BYTE $FF
-s1BF9   LDA (p40),Y
+s1BF9   LDA (RAM_DATPTR_LO),Y
         CMP #$76
         BNE b1C06
         INY 
@@ -1314,7 +1277,7 @@ RAM_BMCOLR LDA #$FF
         STA a1BF6
         RTS 
 
-b1C06   LDA (p40),Y
+b1C06   LDA (RAM_DATPTR_LO),Y
         BPL b1C11
         JSR s18D7
         AND #$1F
@@ -1324,7 +1287,7 @@ b1C11   CMP #$44
         LDA a3558
 b1C18   STA a1BF6
         INY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         BPL b1C27
         JSR s18D7
         AND #$0F
@@ -1334,7 +1297,7 @@ b1C27   CMP #$44
         LDA a355C
 b1C2E   STA a1BF7
         INY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         BPL b1C3B
         JSR s18D7
         AND #$07
@@ -1682,10 +1645,11 @@ b1F06   LDY #$03
 
 s1F0B   JSR s2AFA
         LDX #$09
-b1F10   LDA f0FC7,X
-        STA f34D2,X
+b1F10   LDA SCREEN_RAM + $03C7,X
+        STA CurrentScore,X
         DEX 
         BPL b1F10
+
         LDY #$03
         LDX #$00
 b1F1D   JSR s1F2A
@@ -1778,12 +1742,12 @@ b1FAD   PHA
         TAX 
 b1FB9   TXA 
         PHA 
-b1FBB   INC f0FC7,X
-        LDA f0FC7,X
+b1FBB   INC SCREEN_RAM + $03C7,X
+        LDA SCREEN_RAM + $03C7,X
         CMP #$3A
         BNE b1FCD
         LDA #$30
-        STA f0FC7,X
+        STA SCREEN_RAM + $03C7,X
         DEX 
         BPL b1FBB
 b1FCD   PLA 
@@ -2111,15 +2075,21 @@ s2261   STA a2244
 
 f2273   .BYTE $00,$00,$02,$00,$02,$03,$02,$03
         .BYTE $02,$03,$03,$03,$03,$03,$02,$02
-p2283   .TEXT "OKALA INCARNADINE             "
-p22A1   .TEXT "0000500000GAF THE HORSE IN TEARS        "
+TopScoreText   .TEXT "OKALA INCARNADINE             "
+RestOfTopFiveText
+        .TEXT "0000500000GAF THE HORSE IN TEARS        "
         .TEXT "0000400000TARQUIN BISCUIT BARREL        "
         .TEXT "0000300000ATAHUALPA INCA                "
         .TEXT "0000200000NUMBER SIX                    "
         .TEXT "0000100000"
-a234B   .BYTE $00
+LivesLeft   .BYTE $00
 a234C   .BYTE $FF
-j234D   JSR s2BDC
+
+;------------------------------------------------------------------
+; Display the high score screen.
+;------------------------------------------------------------------
+DisplayHiScoreScreen
+        JSR ClearScreen
         JSR s351B
         LDA #$02
         STA a3196
@@ -2130,36 +2100,39 @@ j234D   JSR s2BDC
         STA a234C
         LDA #$00
         JSR s2D01
+
+        ; Print title for high score screen
         LDX #$27
-b236C   LDA f2428,X
-        CMP #$20
+b236C   LDA HiScoreTitle,X
+        CMP #$20 ; No need to print spaces
         BEQ b237B
-        STA f0C28,X
-        LDA #$77
-        STA f0828,X
+        STA SCREEN_RAM + $0028,X ; Middle of screen
+        LDA #$77 ; Add color to text
+        STA COLOR_RAM + $0028,X
 b237B   DEX 
         BPL b236C
-        LDA #<p2283
-        STA a40
-        LDA #>p2283
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+
+        LDA #<TopScoreText
+        STA RAM_DATPTR_LO
+        LDA #>TopScoreText
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDA #$05
-        STA a42
-        LDA #>p0CA0
+        STA RAM_INPPTR_LO
+        LDA #>SCREEN_RAM + $00A0
         STA a44
-        LDA #<p0CA0
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        LDA #<SCREEN_RAM + $00A0
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
 b2392   LDY #$27
-b2394   LDA (p40),Y
+b2394   LDA (RAM_DATPTR_LO),Y
         CMP #$20
         BEQ b23B6
-        STA (RAM_INPPTR),Y ;INPPTR  Vector: INPUT routine
+        STA (RAM_INPPTR_HI),Y ;INPPTR  Vector: INPUT routine
         LDA a44
         PHA 
         SEC 
         SBC #$04
         STA a44
-        LDA a42
+        LDA RAM_INPPTR_LO
         ASL 
         ASL 
         ASL 
@@ -2168,28 +2141,29 @@ b2394   LDA (p40),Y
         ADC #$20
         AND #$F0
         ORA #$04
-        STA (RAM_INPPTR),Y ;INPPTR  Vector: INPUT routine
+        STA (RAM_INPPTR_HI),Y ;INPPTR  Vector: INPUT routine
         PLA 
         STA a44
 b23B6   DEY 
         BPL b2394
-        LDA a40
+
+        LDA RAM_DATPTR_LO
         CLC 
         ADC #$28
-        STA a40
-        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_LO
+        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
-        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         CLC 
         ADC #$50
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         LDA a44
         ADC #$00
         STA a44
-        DEC a42
+        DEC RAM_INPPTR_LO
         BNE b2392
-        LDY a234B
+        LDY LivesLeft
         BNE b23DE
         LDY #$01
 b23DE   LDA f241A,Y
@@ -2200,11 +2174,11 @@ b23E4   LDA f2420,X
         INY 
         DEX 
         BPL b23E4
-        LDA a234B
+        LDA LivesLeft
         BNE b2450
         JSR s2646
         LDA #$30
-        STA a40
+        STA RAM_DATPTR_LO
         LDX #$20
 b23FC   LDY #$00
         LDA a2F81
@@ -2214,12 +2188,12 @@ b2405   DEY
         BNE b2405
         DEX 
         BNE b23FC
-        DEC a40
+        DEC RAM_DATPTR_LO
         BNE b23FC
 b240F   LDX #$F8
         TXS 
         LDA #$00
-        STA a234B
+        STA LivesLeft
         JMP j1010
 
 f241A   .BYTE $00,$05,$09,$0D,$11,$15
@@ -2227,72 +2201,78 @@ f2420   .BYTE $06,$26
         LSR a06
         ASL a46
         ROL a06
-f2428   .TEXT "VOIDRUNNER FIVE BEST GAMES AND SCORERS /"
-b2450   LDA #>p0E58
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
-        LDA #<p0E58
-        STA a40
+
+HiScoreTitle
+       .TEXT "VOIDRUNNER FIVE BEST GAMES AND SCORERS /"
+
+b2450   LDA #>SCREEN_RAM + $0258
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA #<SCREEN_RAM + $0258
+        STA RAM_DATPTR_LO
         LDA #$71
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
-b245C   LDY #$27
-b245E   LDA f2496,Y
-        CMP #$20
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
+
+        ; Print the text in HighScorePrompt to screen
+b245C   LDY #$27 ; The text is 39 chars long
+b245E   LDA HighScorePrompt,Y
+        CMP #$20 ; No need to print a space
         BEQ b2476
-        STA (p40),Y
-        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA (RAM_DATPTR_LO),Y
+        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         PHA 
         SEC 
         SBC #$04
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
-        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
-        STA (p40),Y
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
+        STA (RAM_DATPTR_LO),Y
         PLA 
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
 b2476   DEY 
         BPL b245E
-        LDA a40
+
+        LDA RAM_DATPTR_LO
         CLC 
         ADC #$28
-        STA a40
-        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_LO
+        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
-        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         SEC 
         SBC #$10
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         AND #$F0
         CMP #$F0
         BNE b245C
         JMP j24BE
 
-f2496   .TEXT "EGO TRIP TIME  /   /   ENTER YOUR HANDLE"
+HighScorePrompt   .TEXT "EGO TRIP TIME  /   /   ENTER YOUR HANDLE"
 j24BE   LDA #$0C
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDA #$08
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         LDA #$A0
-        STA a40
-        STA a42
+        STA RAM_DATPTR_LO
+        STA RAM_INPPTR_LO
         LDX #$00
-        LDY a234B
+        LDY LivesLeft
 j24D1   DEY 
         BEQ b24F0
         TXA 
         CLC 
         ADC #$27
         TAX 
-        LDA a40
+        LDA RAM_DATPTR_LO
         CLC 
         ADC #$50
-        STA a40
-        STA a42
-        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_LO
+        STA RAM_INPPTR_LO
+        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         SEC 
         SBC #$04
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         JMP j24D1
 
 b24F0   LDY #$00
@@ -2303,32 +2283,32 @@ b24F2   JSR s24FE
         BNE b24F2
         JMP b240F
 
-s24FE   LDA (p42),Y
+s24FE   LDA (RAM_INPPTR_LO),Y
         PHA 
         LDA #$77
-        STA (p42),Y
-j2505   LDA (p40),Y
+        STA (RAM_INPPTR_LO),Y
+j2505   LDA (RAM_DATPTR_LO),Y
         AND #$E0
         BNE b250F
         LDA #$20
-        STA (p40),Y
+        STA (RAM_DATPTR_LO),Y
 b250F   LDA a2F81
         AND #$04
         BNE b2522
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         SEC 
         SBC #$01
         JSR s255D
-        STA (p40),Y
+        STA (RAM_DATPTR_LO),Y
         BNE b2533
 b2522   LDA a2F81
         AND #$08
         BNE b2546
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         CLC 
         ADC #$01
         JSR s255D
-        STA (p40),Y
+        STA (RAM_DATPTR_LO),Y
 b2533   LDA #<p30
         STA RAM_OPPTR ;OPPTR   
 b2537   LDA #>p30
@@ -2347,8 +2327,8 @@ b254D   LDA a2F81
         CMP #$4F
         BNE b254D
         PLA 
-        LDA (p40),Y
-        STA p2283,X
+        LDA (RAM_DATPTR_LO),Y
+        STA TopScoreText,X
         RTS 
 
 s255D   CMP #$21
@@ -2399,20 +2379,20 @@ b2587   LDA a234C
         DEC a234C
         RTS 
 
-s25B3   LDA #<p22A1
-        STA a40
-        LDA #>p22A1
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
-        LDA #<f34D2
-        STA a42
-        LDA #>f34D2
-        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
+s25B3   LDA #<RestOfTopFiveText
+        STA RAM_DATPTR_LO
+        LDA #>RestOfTopFiveText
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA #<CurrentScore
+        STA RAM_INPPTR_LO
+        LDA #>CurrentScore
+        STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         LDX #$00
         LDA #$05
         STA a44
 b25C9   LDY #$00
-b25CB   LDA (p40),Y
-        CMP (p42),Y
+b25CB   LDA (RAM_DATPTR_LO),Y
+        CMP (RAM_INPPTR_LO),Y
         BEQ b25D5
         BPL b25DA
         BMI b25F3
@@ -2421,11 +2401,11 @@ b25D5   INY
         BNE b25CB
 b25DA   LDA #$28
         CLC 
-        ADC a40
-        STA a40
-        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        ADC RAM_DATPTR_LO
+        STA RAM_DATPTR_LO
+        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         TXA 
         CLC 
         ADC #$28
@@ -2438,10 +2418,10 @@ b25F3   LDA a44
         CMP #$01
         BNE b260D
         LDA #$05
-        STA a234B
+        STA LivesLeft
         LDY #$00
-b2600   LDA (p42),Y
-        STA p22A1,X
+b2600   LDA (RAM_INPPTR_LO),Y
+        STA RestOfTopFiveText,X
         INY 
         INX 
         CPY #$0A
@@ -2449,7 +2429,7 @@ b2600   LDA (p42),Y
         BEQ j2638
 b260D   LDY #$C7
 b260F   LDA f225B,Y
-        STA p2283,Y
+        STA TopScoreText,Y
         DEY 
         TXA 
         CLC 
@@ -2459,8 +2439,8 @@ b260F   LDA f225B,Y
         CMP a2645
         BNE b260F
         LDY #$00
-b2625   LDA (p42),Y
-        STA p22A1,X
+b2625   LDA (RAM_INPPTR_LO),Y
+        STA RestOfTopFiveText,X
         INY 
         INX 
         CPY #$0A
@@ -2468,7 +2448,7 @@ b2625   LDA (p42),Y
         LDA #$06
         SEC 
         SBC a44
-        STA a234B
+        STA LivesLeft
 j2638   LDA #<p0101
         STA a2BF1
         LDA #>p0101
@@ -2478,13 +2458,13 @@ j2638   LDA #<p0101
 a2645   .BYTE $00
 s2646   LDX #$10
 b2648   LDA f2D81,X
-        STA f0F2C,X
+        STA SCREEN_RAM + $032C,X
         CLC 
         ADC #$20
-        STA f0F54,X
+        STA SCREEN_RAM + $0354,X
         LDA #$5C
-        STA f0B2C,X
-        STA f0B54,X
+        STA COLOR_RAM + $032C,X
+        STA COLOR_RAM + $0354,X
         DEX 
         BPL b2648
         LDX #$07
@@ -2690,7 +2670,7 @@ j2B0A   LDA #$00
         LDA #$00
         STA a2BF0
         CLI 
-        JSR s2BDC
+        JSR ClearScreen
 b2B73   LDA a2F81
         AND #$40
         BEQ b2B73
@@ -2705,7 +2685,7 @@ b2B86   JSR s3AD9
         BNE b2B9B
         DEC a2BF3
         BNE b2B9B
-        JMP j234D
+        JMP DisplayHiScoreScreen
 
 b2B9B   LDA a2F81
         AND #$40
@@ -2713,9 +2693,9 @@ b2B9B   LDA a2F81
         JSR s2D51
         JMP j2F98
 
-s2BA8   LDA #>p080F
+s2BA8   LDA #>COLOR_RAM + $000F
         STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
-s2BAC   LDA #<p080F
+s2BAC   LDA #<COLOR_RAM + $000F
         STA a04
         LDA #$04
         STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
@@ -2743,12 +2723,14 @@ b2BBC   JSR j1384
         STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         RTS 
 
-s2BDC   LDA #$20
-s2BDE   LDX #$00
-b2BE0   STA RAM_TEDSCN,X ;TEDSCN  TED character pointers
-        STA f0D00,X
-        STA f0E00,X
-        STA f0F00,X
+ClearScreen
+        LDA #$20 ; Space
+FillScreen ; Fill Screen with whatever is in A register
+        LDX #$00
+b2BE0   STA SCREEN_RAM,X ;TEDSCN  TED character pointers
+        STA SCREEN_RAM + $0100,X
+        STA SCREEN_RAM + $0200,X
+        STA SCREEN_RAM + $0300,X
         DEX 
         BNE b2BE0
         RTS 
@@ -2849,21 +2831,21 @@ s2D0A   LDA aFF07
         STA aFF07
         LDX #$10
 b2D16   LDA f2D81,X
-        STA f0DC4,X
-        STA f0D24,X
-        STA f0E64,X
+        STA SCREEN_RAM + $01C4,X
+        STA SCREEN_RAM + $0124,X
+        STA SCREEN_RAM + $0264,X
         CLC 
         ADC #$20
-        STA f0DEC,X
-        STA f0D4C,X
-        STA f0E8C,X
+        STA SCREEN_RAM + $01EC,X
+        STA SCREEN_RAM + $014C,X
+        STA SCREEN_RAM + $028C,X
         LDA #$0A
-        STA f09C4,X
-        STA f09EC,X
-        STA f0A64,X
-        STA f0A8C,X
-        STA f0924,X
-        STA f094C,X
+        STA COLOR_RAM + $01C4,X
+        STA COLOR_RAM + $01EC,X
+        STA COLOR_RAM + $0264,X
+        STA COLOR_RAM + $028C,X
+        STA COLOR_RAM + $0124,X
+        STA COLOR_RAM + $014C,X
         DEX 
         BPL b2D16
         LDA #$01
@@ -2872,24 +2854,24 @@ b2D16   LDA f2D81,X
         STA $FF17    ;Color register #2
         BNE b2D67
 s2D51   LDX #$09
-b2D53   LDA f34D2,X
-        STA f2DD8,X
+b2D53   LDA CurrentScore,X
+        STA LastScore,X
         LDA #$30
-        STA f34D2,X
+        STA CurrentScore,X
         DEX 
         BPL b2D53
         LDA #$35
-        STA a34EE
+        STA LivesLeftText
         RTS 
 
 b2D67   LDX #$27
-b2D69   LDA f2D92,X
-        STA f0C28,X
-        LDA f2DBA,X
-        STA f0F70,X
+b2D69   LDA TitleTop,X
+        STA SCREEN_RAM + $0028,X
+        LDA TitleBottom,X
+        STA SCREEN_RAM + $0370,X
         LDA #$76
-        STA f0828,X
-        STA f0B70,X
+        STA COLOR_RAM + $0028,X
+        STA COLOR_RAM + $0370,X
         DEX 
         BPL b2D69
         RTS 
@@ -2897,9 +2879,9 @@ b2D69   LDA f2D92,X
 f2D81   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $09,$0A,$0B,$0C,$0B,$0C,$0D,$0E
         .BYTE $07
-f2D92   .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
-f2DBA   .TEXT "LEVEL /YAK/    LAST SCORE WAS "
-f2DD8   .TEXT "0000000000"
+TitleTop .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
+TitleBottom   .TEXT "LEVEL /YAK/    LAST SCORE WAS "
+LastScore   .TEXT "0000000000"
 a2DE2   .BYTE $52
 a2DE3   .BYTE $04
 s2DE4   DEC a2DE3
@@ -3117,11 +3099,11 @@ j2F98   LDA $FF11    ;Bits 0-3 : Volume control
         STA a2094
         STA a12D7
         LDA #$00
-        JSR s2BDE
-b2FB5   STA RAM_TEDATR,X ;TEDATR  TED attribute bytes
-        STA f0900,X
-        STA f0A00,X
-        STA f0B00,X
+        JSR FillScreen
+b2FB5   STA COLOR_RAM,X ;TEDATR  TED attribute bytes
+        STA COLOR_RAM + $0100,X
+        STA COLOR_RAM + $0200,X
+        STA COLOR_RAM + $0300,X
         DEX 
         BNE b2FB5
         LDA a2094
@@ -3206,7 +3188,7 @@ b3069   LDA f2E02,X
         STA a3097
 b308C   LDA a3097
         BNE b308C
-        JSR s2BDC
+        JSR ClearScreen
         JMP j32B5
 
 a3097   .BYTE $00
@@ -3508,9 +3490,9 @@ b3310   JSR s373D
         LDA a1F29
         BEQ b3310
         LDX #$09
-b3323   LDA f0FC7,X
-        STA f34D2,X
-        STA f2DD8,X
+b3323   LDA SCREEN_RAM + $03C7,X
+        STA CurrentScore,X
+        STA LastScore,X
         DEX 
         BNE b3323
         JSR s1F0B
@@ -3531,14 +3513,14 @@ b334D   LDA f1F9B,X
         BPL b334D
         LDA a15CC
         BNE b3374
-        DEC a34EE
-        LDA a34EE
+        DEC LivesLeftText
+        LDA LivesLeftText
         CMP #$2F
         BNE b336E
         JSR s25B3
         JMP j3B62
 
-b336E   STA a0FE3
+b336E   STA SCREEN_RAM + $03E3
         JMP j3308
 
 b3374   LDA #$00
@@ -3549,11 +3531,11 @@ b3374   LDA #$00
         BNE b3388
         LDA #$00
         STA a17E2
-b3388   INC a34EE
-        LDA a34EE
+b3388   INC LivesLeftText
+        LDA LivesLeftText
         CMP #$3A
         BNE b3395
-        DEC a34EE
+        DEC LivesLeftText
 b3395   JMP j2F98
 
 a3398   .BYTE $00
@@ -3675,11 +3657,11 @@ b34A0   INC f3439,X
         BNE b34BE
         DEC f3439,X
         INC a31CF
-        LDA f34CB,X
-        STA f0FC0,X
+        LDA ScoreLabelText,X
+        STA SCREEN_RAM + $03C0,X
         LDA f34F3,X
         ORA #$70
-        STA f0BC0,X
+        STA COLOR_RAM + $03C0,X
 b34BE   INX 
         CPX #$28
         BNE b347C
@@ -3688,15 +3670,16 @@ b34BE   INX
         BNE b3476
         RTS 
 
-f34CB   .TEXT "SCORE: "
-f34D2   .TEXT "0000000000  LEVEL: "
-f34E5   .TEXT "/YAK/  `:"
-a34EE   .TEXT "0 YAK"
+ScoreLabelText   .TEXT "SCORE: "
+CurrentScore   .TEXT "0000000000  LEVEL: "
+CurrentLevelText   .TEXT "/YAK/  `:"
+LivesLeftText   .TEXT "0 YAK"
 f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
         .BYTE $01,$01,$01,$01,$01,$01,$01,$01
         .BYTE $01,$00,$00,$04,$04,$04,$04,$04
         .BYTE $01,$00,$01,$01,$01,$01,$01,$00
         .BYTE $00,$05,$01,$07,$00,$03,$03,$03
+
 s351B   LDA #$00
         STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
@@ -3920,24 +3903,24 @@ a36DD   .BYTE $06
 b36DE   LDA #$06
         STA a36DD
         LDX #$04
-b36E5   LDA f0BC0,X
+b36E5   LDA COLOR_RAM + $03C0,X
         CLC 
         ADC #$10
-        STA f0BC0,X
-        LDA f0BD3,X
+        STA COLOR_RAM + $03C0,X
+        LDA COLOR_RAM + $03D3,X
         CLC 
         ADC #$10
-        STA f0BD3,X
+        STA COLOR_RAM + $03D3,X
         DEX 
         BPL b36E5
         LDA a234C
         BMI b370E
-        INC a0FE1
-        LDA a0FE1
+        INC SCREEN_RAM + $03E1
+        LDA SCREEN_RAM + $03E1
         CMP #$68
         BNE b36DC
         LDA #$60
-        STA a0FE1
+        STA SCREEN_RAM + $03E1
 b370E   RTS 
 
 f370F   .BYTE $00,$00,$00,$00,$FF,$FF,$FF,$00
@@ -4328,37 +4311,37 @@ a3A6F   .BYTE $00
 s3A70   LDY a17E2
         LDX #$04
         LDA f15D3,Y
-        STA a40
+        STA RAM_DATPTR_LO
         LDA f15F1,Y
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY #$00
-b3A81   LDA (p40),Y
+b3A81   LDA (RAM_DATPTR_LO),Y
         STA f30A4,Y
-        STA f34E5,Y
+        STA CurrentLevelText,Y
         INY 
         DEX 
         BPL b3A81
         LDX #$00
-b3A8F   LDA (p40),Y
+b3A8F   LDA (RAM_DATPTR_LO),Y
         STA a3558,X
         TYA 
         PHA 
         CLC 
         ADC #$04
         TAY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA a355C,X
         TYA 
         CLC 
         ADC #$04
         TAY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA f372F,X
         TYA 
         CLC 
         ADC #$04
         TAY 
-        LDA (p40),Y
+        LDA (RAM_DATPTR_LO),Y
         STA f3560,X
         PLA 
         TAY 
@@ -4409,12 +4392,12 @@ b3AED   LDA a2F81
         STA a17E2
         LDX a17E2
         LDA f15D3,X
-        STA a40
+        STA RAM_DATPTR_LO
         LDA f15F1,X
-        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY #$04
-b3B13   LDA (p40),Y
-        STA f0F76,Y
+b3B13   LDA (RAM_DATPTR_LO),Y
+        STA SCREEN_RAM + $0376,Y
         DEY 
         BPL b3B13
 b3B1B   LDA a2F81
@@ -4491,11 +4474,11 @@ b3BC8   LDX #$F8
         TXS 
         LDA #$00
         STA $FF11    ;Bits 0-3 : Volume control
-        LDA a234B
+        LDA LivesLeft
         BNE b3BD8
         JMP j1010
 
-b3BD8   JMP j234D
+b3BD8   JMP DisplayHiScoreScreen
 
 a3BDB   .BYTE $00,$FF,$FF,$FF,$FF,$FF,$FF,$FF
         .BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
@@ -4537,1039 +4520,5 @@ f3C79   .BYTE $FF,$FF,$FF,$FC,$FC,$FF,$FF,$FF
         .BYTE $00,$00,$7E,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00
 
-        .BYTE $74,$74,$75,$77,$7F,$7D,$74,$50   ;.BYTE $74,$74,$75,$77,$7F,$7D,$74,$50
-                                                ; CHARACTER $00
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110101    *** * *
-                                                ; 01110111    *** ***
-                                                ; 01111111    *******
-                                                ; 01111101    ***** *
-                                                ; 01110100    *** *  
-                                                ; 01010000    * *    
+.include "charset.asm"
 
-        .BYTE $74,$74,$F4,$D0,$40,$00,$00,$00   ;.BYTE $74,$74,$F4,$D0,$40,$00,$00,$00
-                                                ; CHARACTER $01
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 11110100   **** *  
-                                                ; 11010000   ** *    
-                                                ; 01000000    *      
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $77,$77,$77,$77,$77,$77,$7F,$15   ;.BYTE $77,$77,$77,$77,$77,$77,$7F,$15
-                                                ; CHARACTER $02
-                                                ; 01110111    *** ***
-                                                ; 01110111    *** ***
-                                                ; 01110111    *** ***
-                                                ; 01110111    *** ***
-                                                ; 01110111    *** ***
-                                                ; 01110111    *** ***
-                                                ; 01111111    *******
-                                                ; 00010101      * * *
-
-        .BYTE $47,$47,$47,$47,$47,$47,$47,$05   ;.BYTE $47,$47,$47,$47,$47,$47,$47,$05
-                                                ; CHARACTER $03
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 00000101        * *
-
-        .BYTE $47,$47,$47,$47,$47,$47,$47,$41   ;.BYTE $47,$47,$47,$47,$47,$47,$47,$41
-                                                ; CHARACTER $04
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000111    *   ***
-                                                ; 01000001    *     *
-
-        .BYTE $74,$74,$74,$74,$74,$74,$F4,$54   ;.BYTE $74,$74,$74,$74,$74,$74,$F4,$54
-                                                ; CHARACTER $05
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 11110100   **** *  
-                                                ; 01010100    * * *  
-
-        .BYTE $74,$74,$74,$74,$74,$74,$74,$54   ;.BYTE $74,$74,$74,$74,$74,$74,$74,$54
-                                                ; CHARACTER $06
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01010100    * * *  
-
-        .BYTE $01,$01,$01,$01,$01,$01,$01,$00   ;.BYTE $01,$01,$01,$01,$01,$01,$01,$00
-                                                ; CHARACTER $07
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000001          *
-                                                ; 00000000           
-
-        .BYTE $D1,$D1,$D1,$D1,$D1,$D5,$FF,$55   ;.BYTE $D1,$D1,$D1,$D1,$D1,$D5,$FF,$55
-                                                ; CHARACTER $08
-                                                ; 11010001   ** *   *
-                                                ; 11010001   ** *   *
-                                                ; 11010001   ** *   *
-                                                ; 11010001   ** *   *
-                                                ; 11010001   ** *   *
-                                                ; 11010101   ** * * *
-                                                ; 11111111   ********
-                                                ; 01010101    * * * *
-
-        .BYTE $D0,$D0,$D0,$D0,$D0,$D0,$D0,$40   ;.BYTE $D0,$D0,$D0,$D0,$D0,$D0,$D0,$40
-                                                ; CHARACTER $09
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 11010000   ** *    
-                                                ; 01000000    *      
-
-        .BYTE $7F,$77,$75,$74,$74,$74,$74,$54   ;.BYTE $7F,$77,$75,$74,$74,$74,$74,$54
-                                                ; CHARACTER $0a
-                                                ; 01111111    *******
-                                                ; 01110111    *** ***
-                                                ; 01110101    *** * *
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01010100    * * *  
-
-        .BYTE $74,$F4,$F4,$74,$74,$74,$74,$54   ;.BYTE $74,$F4,$F4,$74,$74,$74,$74,$54
-                                                ; CHARACTER $0b
-                                                ; 01110100    *** *  
-                                                ; 11110100   **** *  
-                                                ; 11110100   **** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01010100    * * *  
-
-        .BYTE $75,$7F,$75,$74,$74,$75,$7F,$15   ;.BYTE $75,$7F,$75,$74,$74,$75,$7F,$15
-                                                ; CHARACTER $0c
-                                                ; 01110101    *** * *
-                                                ; 01111111    *******
-                                                ; 01110101    *** * *
-                                                ; 01110100    *** *  
-                                                ; 01110100    *** *  
-                                                ; 01110101    *** * *
-                                                ; 01111111    *******
-                                                ; 00010101      * * *
-
-        .BYTE $74,$F4,$50,$00,$00,$54,$F4,$54   ;.BYTE $74,$F4,$50,$00,$00,$54,$F4,$54
-                                                ; CHARACTER $0d
-                                                ; 01110100    *** *  
-                                                ; 11110100   **** *  
-                                                ; 01010000    * *    
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 01010100    * * *  
-                                                ; 11110100   **** *  
-                                                ; 01010100    * * *  
-
-        .BYTE $42,$99,$7E,$5A,$7E,$3C,$24,$18   ;.BYTE $42,$99,$7E,$5A,$7E,$3C,$24,$18
-                                                ; CHARACTER $0e
-                                                ; 01000010    *    * 
-                                                ; 10011001   *  **  *
-                                                ; 01111110    ****** 
-                                                ; 01011010    * ** * 
-                                                ; 01111110    ****** 
-                                                ; 00111100     ****  
-                                                ; 00100100     *  *  
-                                                ; 00011000      **   
-
-        .BYTE $7C,$06,$CE,$DE,$F6,$E6,$7C,$00   ;.BYTE $7C,$06,$CE,$DE,$F6,$E6,$7C,$00
-                                                ; CHARACTER $0f
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11001110   **  *** 
-                                                ; 11011110   ** **** 
-                                                ; 11110110   **** ** 
-                                                ; 11100110   ***  ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $38,$18,$18,$18,$18,$18,$3C,$00   ;.BYTE $38,$18,$18,$18,$18,$18,$3C,$00
-                                                ; CHARACTER $10
-                                                ; 00111000     ***   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00111100     ****  
-                                                ; 00000000           
-
-        .BYTE $FC,$06,$06,$FC,$C0,$C6,$FE,$00   ;.BYTE $FC,$06,$06,$FC,$C0,$C6,$FE,$00
-                                                ; CHARACTER $11
-                                                ; 11111100   ******  
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 11111100   ******  
-                                                ; 11000000   **      
-                                                ; 11000110   **   ** 
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-
-        .BYTE $FC,$06,$06,$3C,$06,$C6,$FC,$00   ;.BYTE $FC,$06,$06,$3C,$06,$C6,$FC,$00
-                                                ; CHARACTER $12
-                                                ; 11111100   ******  
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00111100     ****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 00000000           
-
-        .BYTE $C0,$00,$D8,$FE,$18,$18,$18,$00   ;.BYTE $C0,$00,$D8,$FE,$18,$18,$18,$00
-                                                ; CHARACTER $13
-                                                ; 11000000   **      
-                                                ; 00000000           
-                                                ; 11011000   ** **   
-                                                ; 11111110   ******* 
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00000000           
-
-        .BYTE $FE,$06,$C0,$FC,$06,$C6,$FC,$00   ;.BYTE $FE,$06,$C0,$FC,$06,$C6,$FC,$00
-                                                ; CHARACTER $14
-                                                ; 11111110   ******* 
-                                                ; 00000110        ** 
-                                                ; 11000000   **      
-                                                ; 11111100   ******  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 00000000           
-
-        .BYTE $7E,$06,$C0,$FC,$C6,$C6,$7C,$00   ;.BYTE $7E,$06,$C0,$FC,$C6,$C6,$7C,$00
-                                                ; CHARACTER $15
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000000   **      
-                                                ; 11111100   ******  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $FE,$06,$06,$06,$06,$06,$06,$06   ;.BYTE $FE,$06,$06,$06,$06,$06,$06,$06
-                                                ; CHARACTER $16
-                                                ; 11111110   ******* 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-
-        .BYTE $7C,$06,$C6,$7C,$C6,$C6,$7C,$00   ;.BYTE $7C,$06,$C6,$7C,$C6,$C6,$7C,$00
-                                                ; CHARACTER $17
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $7C,$06,$C6,$7E,$06,$C6,$FC,$00   ;.BYTE $7C,$06,$C6,$7E,$06,$C6,$FC,$00
-                                                ; CHARACTER $18
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 00000000           
-
-        .BYTE $00,$00,$18,$00,$00,$18,$00,$00   ;.BYTE $00,$00,$18,$00,$00,$18,$00,$00
-                                                ; CHARACTER $19
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $18,$18,$18,$18,$00,$18,$18,$00   ;.BYTE $18,$18,$18,$18,$00,$18,$18,$00
-                                                ; CHARACTER $1a
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00000000           
-
-        .BYTE $0E,$18,$30,$60,$30,$18,$0E,$00   ;.BYTE $0E,$18,$30,$60,$30,$18,$0E,$00
-                                                ; CHARACTER $1b
-                                                ; 00001110       *** 
-                                                ; 00011000      **   
-                                                ; 00110000     **    
-                                                ; 01100000    **     
-                                                ; 00110000     **    
-                                                ; 00011000      **   
-                                                ; 00001110       *** 
-                                                ; 00000000           
-
-        .BYTE $00,$00,$7E,$00,$7E,$00,$00,$00   ;.BYTE $00,$00,$7E,$00,$7E,$00,$00,$00
-                                                ; CHARACTER $1c
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 01111110    ****** 
-                                                ; 00000000           
-                                                ; 01111110    ****** 
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $70,$18,$0C,$06,$0C,$18,$70,$00   ;.BYTE $70,$18,$0C,$06,$0C,$18,$70,$00
-                                                ; CHARACTER $1d
-                                                ; 01110000    ***    
-                                                ; 00011000      **   
-                                                ; 00001100       **  
-                                                ; 00000110        ** 
-                                                ; 00001100       **  
-                                                ; 00011000      **   
-                                                ; 01110000    ***    
-                                                ; 00000000           
-
-        .BYTE $3C,$66,$06,$0C,$18,$00,$18,$00   ;.BYTE $3C,$66,$06,$0C,$18,$00,$18,$00
-                                                ; CHARACTER $1e
-                                                ; 00111100     ****  
-                                                ; 01100110    **  ** 
-                                                ; 00000110        ** 
-                                                ; 00001100       **  
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00000000           
-
-        .BYTE $00,$00,$00,$00,$00,$00,$00,$00   ;.BYTE $00,$00,$00,$00,$00,$00,$00,$00
-                                                ; CHARACTER $1f
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $F0,$18,$CC,$FE,$C6,$C6,$C6,$C0   ;.BYTE $F0,$18,$CC,$FE,$C6,$C6,$C6,$C0
-                                                ; CHARACTER $20
-                                                ; 11110000   ****    
-                                                ; 00011000      **   
-                                                ; 11001100   **  **  
-                                                ; 11111110   ******* 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000000   **      
-
-        .BYTE $F8,$0C,$C6,$FC,$C6,$CC,$F8,$00   ;.BYTE $F8,$0C,$C6,$FC,$C6,$CC,$F8,$00
-                                                ; CHARACTER $21
-                                                ; 11111000   *****   
-                                                ; 00001100       **  
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 11000110   **   ** 
-                                                ; 11001100   **  **  
-                                                ; 11111000   *****   
-                                                ; 00000000           
-
-        .BYTE $3C,$0C,$C0,$C0,$C0,$6C,$3C,$00   ;.BYTE $3C,$0C,$C0,$C0,$C0,$6C,$3C,$00
-                                                ; CHARACTER $22
-                                                ; 00111100     ****  
-                                                ; 00001100       **  
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 01101100    ** **  
-                                                ; 00111100     ****  
-                                                ; 00000000           
-
-        .BYTE $E0,$30,$D8,$CC,$C6,$C6,$FE,$00   ;.BYTE $E0,$30,$D8,$CC,$C6,$C6,$FE,$00
-                                                ; CHARACTER $23
-                                                ; 11100000   ***     
-                                                ; 00110000     **    
-                                                ; 11011000   ** **   
-                                                ; 11001100   **  **  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-
-        .BYTE $FE,$00,$C0,$F0,$C0,$C0,$FE,$00   ;.BYTE $FE,$00,$C0,$F0,$C0,$C0,$FE,$00
-                                                ; CHARACTER $24
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-                                                ; 11000000   **      
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-
-        .BYTE $FE,$00,$C0,$F0,$C0,$C0,$C0,$C0   ;.BYTE $FE,$00,$C0,$F0,$C0,$C0,$C0,$C0
-                                                ; CHARACTER $25
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-                                                ; 11000000   **      
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-
-        .BYTE $7E,$06,$C0,$CE,$C6,$C6,$7E,$00   ;.BYTE $7E,$06,$C0,$CE,$C6,$C6,$7E,$00
-                                                ; CHARACTER $26
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000000   **      
-                                                ; 11001110   **  *** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111110    ****** 
-                                                ; 00000000           
-
-        .BYTE $C6,$06,$C6,$FE,$C6,$C6,$C6,$C0   ;.BYTE $C6,$06,$C6,$FE,$C6,$C6,$C6,$C0
-                                                ; CHARACTER $27
-                                                ; 11000110   **   ** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111110   ******* 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000000   **      
-
-        .BYTE $18,$00,$18,$18,$18,$18,$18,$00   ;.BYTE $18,$00,$18,$18,$18,$18,$18,$00
-                                                ; CHARACTER $28
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00000000           
-
-        .BYTE $18,$00,$18,$18,$18,$18,$18,$70   ;.BYTE $18,$00,$18,$18,$18,$18,$18,$70
-                                                ; CHARACTER $29
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 01110000    ***    
-
-        .BYTE $C6,$06,$CC,$F8,$CC,$C6,$C6,$C0   ;.BYTE $C6,$06,$CC,$F8,$CC,$C6,$C6,$C0
-                                                ; CHARACTER $2a
-                                                ; 11000110   **   ** 
-                                                ; 00000110        ** 
-                                                ; 11001100   **  **  
-                                                ; 11111000   *****   
-                                                ; 11001100   **  **  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000000   **      
-
-        .BYTE $C0,$00,$C0,$C0,$C0,$C6,$FE,$00   ;.BYTE $C0,$00,$C0,$C0,$C0,$C6,$FE,$00
-                                                ; CHARACTER $2b
-                                                ; 11000000   **      
-                                                ; 00000000           
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000110   **   ** 
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-
-        .BYTE $C6,$2E,$FE,$FE,$D6,$C6,$C6,$C0   ;.BYTE $C6,$2E,$FE,$FE,$D6,$C6,$C6,$C0
-                                                ; CHARACTER $2c
-                                                ; 11000110   **   ** 
-                                                ; 00101110     * *** 
-                                                ; 11111110   ******* 
-                                                ; 11111110   ******* 
-                                                ; 11010110   ** * ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000000   **      
-
-        .BYTE $C2,$06,$CE,$DE,$FE,$F6,$E6,$C0   ;.BYTE $C2,$06,$CE,$DE,$FE,$F6,$E6,$C0
-                                                ; CHARACTER $2d
-                                                ; 11000010   **    * 
-                                                ; 00000110        ** 
-                                                ; 11001110   **  *** 
-                                                ; 11011110   ** **** 
-                                                ; 11111110   ******* 
-                                                ; 11110110   **** ** 
-                                                ; 11100110   ***  ** 
-                                                ; 11000000   **      
-
-        .BYTE $7C,$06,$C6,$C6,$C6,$C6,$7C,$00   ;.BYTE $7C,$06,$C6,$C6,$C6,$C6,$7C,$00
-                                                ; CHARACTER $2e
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $FC,$06,$C6,$FC,$C0,$C0,$C0,$C0   ;.BYTE $FC,$06,$C6,$FC,$C0,$C0,$C0,$C0
-                                                ; CHARACTER $2f
-                                                ; 11111100   ******  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-
-        .BYTE $7C,$06,$C6,$C6,$CE,$CE,$7E,$03   ;.BYTE $7C,$06,$C6,$C6,$CE,$CE,$7E,$03
-                                                ; CHARACTER $30
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11001110   **  *** 
-                                                ; 11001110   **  *** 
-                                                ; 01111110    ****** 
-                                                ; 00000011         **
-
-        .BYTE $FC,$06,$C6,$FC,$CC,$C6,$C6,$C0   ;.BYTE $FC,$06,$C6,$FC,$CC,$C6,$C6,$C0
-                                                ; CHARACTER $31
-                                                ; 11111100   ******  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 11001100   **  **  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000000   **      
-
-        .BYTE $7E,$06,$C0,$7C,$06,$C6,$FC,$00   ;.BYTE $7E,$06,$C0,$7C,$06,$C6,$FC,$00
-                                                ; CHARACTER $32
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000000   **      
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 00000000           
-
-        .BYTE $FE,$00,$C0,$C0,$C0,$C0,$7E,$00   ;.BYTE $FE,$00,$C0,$C0,$C0,$C0,$7E,$00
-                                                ; CHARACTER $33
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 11000000   **      
-                                                ; 01111110    ****** 
-                                                ; 00000000           
-
-        .BYTE $CE,$06,$C6,$C6,$C6,$E6,$7C,$00   ;.BYTE $CE,$06,$C6,$C6,$C6,$E6,$7C,$00
-                                                ; CHARACTER $34
-                                                ; 11001110   **  *** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11100110   ***  ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $CE,$06,$C6,$C6,$CC,$D8,$F0,$C0   ;.BYTE $CE,$06,$C6,$C6,$CC,$D8,$F0,$C0
-                                                ; CHARACTER $35
-                                                ; 11001110   **  *** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 11001100   **  **  
-                                                ; 11011000   ** **   
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-
-        .BYTE $C6,$06,$C6,$D6,$FE,$FE,$EE,$C6   ;.BYTE $C6,$06,$C6,$D6,$FE,$FE,$EE,$C6
-                                                ; CHARACTER $36
-                                                ; 11000110   **   ** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11010110   ** * ** 
-                                                ; 11111110   ******* 
-                                                ; 11111110   ******* 
-                                                ; 11101110   *** *** 
-                                                ; 11000110   **   ** 
-
-        .BYTE $C6,$44,$10,$38,$10,$44,$C6,$00   ;.BYTE $C6,$44,$10,$38,$10,$44,$C6,$00
-                                                ; CHARACTER $37
-                                                ; 11000110   **   ** 
-                                                ; 01000100    *   *  
-                                                ; 00010000      *    
-                                                ; 00111000     ***   
-                                                ; 00010000      *    
-                                                ; 01000100    *   *  
-                                                ; 11000110   **   ** 
-                                                ; 00000000           
-
-        .BYTE $C6,$06,$C6,$7E,$06,$06,$06,$06   ;.BYTE $C6,$06,$C6,$7E,$06,$06,$06,$06
-                                                ; CHARACTER $38
-                                                ; 11000110   **   ** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-
-        .BYTE $FE,$06,$CC,$18,$36,$66,$FE,$00   ;.BYTE $FE,$06,$CC,$18,$36,$66,$FE,$00
-                                                ; CHARACTER $39
-                                                ; 11111110   ******* 
-                                                ; 00000110        ** 
-                                                ; 11001100   **  **  
-                                                ; 00011000      **   
-                                                ; 00110110     ** ** 
-                                                ; 01100110    **  ** 
-                                                ; 11111110   ******* 
-                                                ; 00000000           
-
-        .BYTE $22,$73,$72,$FA,$FC,$C8,$88,$CC   ;.BYTE $22,$73,$72,$FA,$FC,$C8,$88,$CC
-                                                ; CHARACTER $3a
-                                                ; 00100010     *   * 
-                                                ; 01110011    ***  **
-                                                ; 01110010    ***  * 
-                                                ; 11111010   ***** * 
-                                                ; 11111100   ******  
-                                                ; 11001000   **  *   
-                                                ; 10001000   *   *   
-                                                ; 11001100   **  **  
-
-        .BYTE $44,$CE,$4E,$5F,$3F,$13,$11,$33   ;.BYTE $44,$CE,$4E,$5F,$3F,$13,$11,$33
-                                                ; CHARACTER $3b
-                                                ; 01000100    *   *  
-                                                ; 11001110   **  *** 
-                                                ; 01001110    *  *** 
-                                                ; 01011111    * *****
-                                                ; 00111111     ******
-                                                ; 00010011      *  **
-                                                ; 00010001      *   *
-                                                ; 00110011     **  **
-
-        .BYTE $38,$44,$07,$FE,$7C,$44,$C4,$84   ;.BYTE $38,$44,$07,$FE,$7C,$44,$C4,$84
-                                                ; CHARACTER $3c
-                                                ; 00111000     ***   
-                                                ; 01000100    *   *  
-                                                ; 00000111        ***
-                                                ; 11111110   ******* 
-                                                ; 01111100    *****  
-                                                ; 01000100    *   *  
-                                                ; 11000100   **   *  
-                                                ; 10000100   *    *  
-
-        .BYTE $1C,$22,$E0,$7F,$3E,$22,$23,$21   ;.BYTE $1C,$22,$E0,$7F,$3E,$22,$23,$21
-                                                ; CHARACTER $3d
-                                                ; 00011100      ***  
-                                                ; 00100010     *   * 
-                                                ; 11100000   ***     
-                                                ; 01111111    *******
-                                                ; 00111110     ***** 
-                                                ; 00100010     *   * 
-                                                ; 00100011     *   **
-                                                ; 00100001     *    *
-
-        .BYTE $5A,$DB,$18,$E7,$E7,$18,$DB,$5A   ;.BYTE $5A,$DB,$18,$E7,$E7,$18,$DB,$5A
-                                                ; CHARACTER $3e
-                                                ; 01011010    * ** * 
-                                                ; 11011011   ** ** **
-                                                ; 00011000      **   
-                                                ; 11100111   ***  ***
-                                                ; 11100111   ***  ***
-                                                ; 00011000      **   
-                                                ; 11011011   ** ** **
-                                                ; 01011010    * ** * 
-
-        .BYTE $18,$18,$3C,$3C,$7E,$7E,$E7,$C3   ;.BYTE $18,$18,$3C,$3C,$7E,$7E,$E7,$C3
-                                                ; CHARACTER $3f
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 01111110    ****** 
-                                                ; 01111110    ****** 
-                                                ; 11100111   ***  ***
-                                                ; 11000011   **    **
-
-        .BYTE $03,$0F,$3E,$FE,$0E,$06,$04,$04   ;.BYTE $03,$0F,$3E,$FE,$0E,$06,$04,$04
-                                                ; CHARACTER $40
-                                                ; 00000011         **
-                                                ; 00001111       ****
-                                                ; 00111110     ***** 
-                                                ; 11111110   ******* 
-                                                ; 00001110       *** 
-                                                ; 00000110        ** 
-                                                ; 00000100        *  
-                                                ; 00000100        *  
-
-        .BYTE $C0,$F0,$7C,$3F,$3F,$7C,$F0,$C0   ;.BYTE $C0,$F0,$7C,$3F,$3F,$7C,$F0,$C0
-                                                ; CHARACTER $41
-                                                ; 11000000   **      
-                                                ; 11110000   ****    
-                                                ; 01111100    *****  
-                                                ; 00111111     ******
-                                                ; 00111111     ******
-                                                ; 01111100    *****  
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-
-        .BYTE $08,$08,$0C,$0C,$1E,$FE,$3F,$03   ;.BYTE $08,$08,$0C,$0C,$1E,$FE,$3F,$03
-                                                ; CHARACTER $42
-                                                ; 00001000       *   
-                                                ; 00001000       *   
-                                                ; 00001100       **  
-                                                ; 00001100       **  
-                                                ; 00011110      **** 
-                                                ; 11111110   ******* 
-                                                ; 00111111     ******
-                                                ; 00000011         **
-
-        .BYTE $C3,$E7,$7E,$7E,$3C,$3C,$18,$18   ;.BYTE $C3,$E7,$7E,$7E,$3C,$3C,$18,$18
-                                                ; CHARACTER $43
-                                                ; 11000011   **    **
-                                                ; 11100111   ***  ***
-                                                ; 01111110    ****** 
-                                                ; 01111110    ****** 
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-
-        .BYTE $20,$20,$60,$70,$7F,$7C,$F0,$C0   ;.BYTE $20,$20,$60,$70,$7F,$7C,$F0,$C0
-                                                ; CHARACTER $44
-                                                ; 00100000     *     
-                                                ; 00100000     *     
-                                                ; 01100000    **     
-                                                ; 01110000    ***    
-                                                ; 01111111    *******
-                                                ; 01111100    *****  
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-
-        .BYTE $03,$0F,$3E,$FC,$FC,$3E,$0F,$03   ;.BYTE $03,$0F,$3E,$FC,$FC,$3E,$0F,$03
-                                                ; CHARACTER $45
-                                                ; 00000011         **
-                                                ; 00001111       ****
-                                                ; 00111110     ***** 
-                                                ; 11111100   ******  
-                                                ; 11111100   ******  
-                                                ; 00111110     ***** 
-                                                ; 00001111       ****
-                                                ; 00000011         **
-
-        .BYTE $C0,$FC,$7F,$78,$30,$30,$10,$10   ;.BYTE $C0,$FC,$7F,$78,$30,$30,$10,$10
-                                                ; CHARACTER $46
-                                                ; 11000000   **      
-                                                ; 11111100   ******  
-                                                ; 01111111    *******
-                                                ; 01111000    ****   
-                                                ; 00110000     **    
-                                                ; 00110000     **    
-                                                ; 00010000      *    
-                                                ; 00010000      *    
-
-        .BYTE $18,$18,$18,$3C,$3C,$18,$18,$18   ;.BYTE $18,$18,$18,$3C,$3C,$18,$18,$18
-                                                ; CHARACTER $47
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-
-        .BYTE $00,$00,$18,$FF,$FF,$18,$00,$00   ;.BYTE $00,$00,$18,$FF,$FF,$18,$00,$00
-                                                ; CHARACTER $48
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00011000      **   
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-                                                ; 00011000      **   
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $03,$06,$0C,$3C,$3C,$30,$60,$C0   ;.BYTE $03,$06,$0C,$3C,$3C,$30,$60,$C0
-                                                ; CHARACTER $49
-                                                ; 00000011         **
-                                                ; 00000110        ** 
-                                                ; 00001100       **  
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00110000     **    
-                                                ; 01100000    **     
-                                                ; 11000000   **      
-
-        .BYTE $80,$C0,$78,$38,$1C,$1E,$03,$01   ;.BYTE $80,$C0,$78,$38,$1C,$1E,$03,$01
-                                                ; CHARACTER $4a
-                                                ; 10000000   *       
-                                                ; 11000000   **      
-                                                ; 01111000    ****   
-                                                ; 00111000     ***   
-                                                ; 00011100      ***  
-                                                ; 00011110      **** 
-                                                ; 00000011         **
-                                                ; 00000001          *
-
-        .BYTE $00,$28,$BC,$FF,$FF,$3C,$00,$00   ;.BYTE $00,$28,$BC,$FF,$FF,$3C,$00,$00
-                                                ; CHARACTER $4b
-                                                ; 00000000           
-                                                ; 00101000     * *   
-                                                ; 10111100   * ****  
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-                                                ; 00111100     ****  
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $55,$24,$BC,$FF,$FF,$3C,$14,$55   ;.BYTE $55,$24,$BC,$FF,$FF,$3C,$14,$55
-                                                ; CHARACTER $4c
-                                                ; 01010101    * * * *
-                                                ; 00100100     *  *  
-                                                ; 10111100   * ****  
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-                                                ; 00111100     ****  
-                                                ; 00010100      * *  
-                                                ; 01010101    * * * *
-
-        .BYTE $10,$20,$44,$88,$11,$22,$04,$08   ;.BYTE $10,$20,$44,$88,$11,$22,$04,$08
-                                                ; CHARACTER $4d
-                                                ; 00010000      *    
-                                                ; 00100000     *     
-                                                ; 01000100    *   *  
-                                                ; 10001000   *   *   
-                                                ; 00010001      *   *
-                                                ; 00100010     *   * 
-                                                ; 00000100        *  
-                                                ; 00001000       *   
-
-        .BYTE $08,$04,$22,$11,$88,$44,$20,$10   ;.BYTE $08,$04,$22,$11,$88,$44,$20,$10
-                                                ; CHARACTER $4e
-                                                ; 00001000       *   
-                                                ; 00000100        *  
-                                                ; 00100010     *   * 
-                                                ; 00010001      *   *
-                                                ; 10001000   *   *   
-                                                ; 01000100    *   *  
-                                                ; 00100000     *     
-                                                ; 00010000      *    
-
-        .BYTE $1C,$3C,$3C,$3C,$7F,$FF,$FF,$C3   ;.BYTE $1C,$3C,$3C,$3C,$7F,$FF,$FF,$C3
-                                                ; CHARACTER $4f
-                                                ; 00011100      ***  
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 01111111    *******
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-                                                ; 11000011   **    **
-
-        .BYTE $C3,$FF,$FF,$7F,$3C,$3C,$3C,$1C   ;.BYTE $C3,$FF,$FF,$7F,$3C,$3C,$3C,$1C
-                                                ; CHARACTER $50
-                                                ; 11000011   **    **
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-                                                ; 01111111    *******
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00111100     ****  
-                                                ; 00011100      ***  
-
-        .BYTE $00,$40,$D0,$3D,$3F,$F0,$C0,$00   ;.BYTE $00,$40,$D0,$3D,$3F,$F0,$C0,$00
-                                                ; CHARACTER $51
-                                                ; 00000000           
-                                                ; 01000000    *      
-                                                ; 11010000   ** *    
-                                                ; 00111101     **** *
-                                                ; 00111111     ******
-                                                ; 11110000   ****    
-                                                ; 11000000   **      
-                                                ; 00000000           
-
-        .BYTE $00,$01,$07,$7C,$FC,$0F,$03,$00   ;.BYTE $00,$01,$07,$7C,$FC,$0F,$03,$00
-                                                ; CHARACTER $52
-                                                ; 00000000           
-                                                ; 00000001          *
-                                                ; 00000111        ***
-                                                ; 01111100    *****  
-                                                ; 11111100   ******  
-                                                ; 00001111       ****
-                                                ; 00000011         **
-                                                ; 00000000           
-
-        .BYTE $3C,$0C,$30,$3C,$0C,$30,$3C,$0C   ;.BYTE $3C,$0C,$30,$3C,$0C,$30,$3C,$0C
-                                                ; CHARACTER $53
-                                                ; 00111100     ****  
-                                                ; 00001100       **  
-                                                ; 00110000     **    
-                                                ; 00111100     ****  
-                                                ; 00001100       **  
-                                                ; 00110000     **    
-                                                ; 00111100     ****  
-                                                ; 00001100       **  
-
-        .BYTE $00,$00,$CF,$FC,$00,$00,$00,$00   ;.BYTE $00,$00,$CF,$FC,$00,$00,$00,$00
-                                                ; CHARACTER $54
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 11001111   **  ****
-                                                ; 11111100   ******  
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $7E,$06,$C0,$FC,$C6,$C6,$7C,$00   ;.BYTE $7E,$06,$C0,$FC,$C6,$C6,$7C,$00
-                                                ; CHARACTER $55
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000000   **      
-                                                ; 11111100   ******  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $FE,$06,$06,$06,$06,$06,$06,$06   ;.BYTE $FE,$06,$06,$06,$06,$06,$06,$06
-                                                ; CHARACTER $56
-                                                ; 11111110   ******* 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-                                                ; 00000110        ** 
-
-        .BYTE $7C,$06,$C6,$7C,$C6,$C6,$7C,$00   ;.BYTE $7C,$06,$C6,$7C,$C6,$C6,$7C,$00
-                                                ; CHARACTER $57
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 11000110   **   ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111100    *****  
-                                                ; 00000000           
-
-        .BYTE $7C,$06,$C6,$7E,$06,$C6,$FC,$00   ;.BYTE $7C,$06,$C6,$7E,$06,$C6,$FC,$00
-                                                ; CHARACTER $58
-                                                ; 01111100    *****  
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 01111110    ****** 
-                                                ; 00000110        ** 
-                                                ; 11000110   **   ** 
-                                                ; 11111100   ******  
-                                                ; 00000000           
-
-        .BYTE $03,$03,$03,$03,$03,$03,$FF,$FF   ;.BYTE $03,$03,$03,$03,$03,$03,$FF,$FF
-                                                ; CHARACTER $59
-                                                ; 00000011         **
-                                                ; 00000011         **
-                                                ; 00000011         **
-                                                ; 00000011         **
-                                                ; 00000011         **
-                                                ; 00000011         **
-                                                ; 11111111   ********
-                                                ; 11111111   ********
-
-        .BYTE $00,$00,$00,$00,$F0,$F0,$F0,$F0   ;.BYTE $00,$00,$00,$00,$F0,$F0,$F0,$F0
-                                                ; CHARACTER $5a
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-
-        .BYTE $0F,$0F,$0F,$0F,$00,$00,$00,$00   ;.BYTE $0F,$0F,$0F,$0F,$00,$00,$00,$00
-                                                ; CHARACTER $5b
-                                                ; 00001111       ****
-                                                ; 00001111       ****
-                                                ; 00001111       ****
-                                                ; 00001111       ****
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $18,$18,$18,$F8,$F8,$00,$00,$00   ;.BYTE $18,$18,$18,$F8,$F8,$00,$00,$00
-                                                ; CHARACTER $5c
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 00011000      **   
-                                                ; 11111000   *****   
-                                                ; 11111000   *****   
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-        .BYTE $F0,$F0,$F0,$F0,$00,$00,$00,$00   ;.BYTE $F0,$F0,$F0,$F0,$00,$00,$00,$00
-                                                ; CHARACTER $5d
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-                                                ; 11110000   ****    
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-                                                ; 00000000           
-
-
-        .BYTE $F0,$F0,$F0,$F0,$0F,$0F,$0F
