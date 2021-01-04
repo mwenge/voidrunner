@@ -1,49 +1,44 @@
 ;
 ; **** ZP FIELDS **** 
 ;
-f9D = $9D
+RAM_EAL = $9D
 ;
 ; **** ZP ABSOLUTE ADRESSES **** 
 ;
-a02 = $02
-a03 = $03
+RAM_SRCHTK = $02
+RAM_ZPVEC1 = $03
 a04 = $04
-a05 = $05
+RAM_ZPVEC2 = $05
 a06 = $06
-a07 = $07
-a08 = $08
-a09 = $09
-a0A = $0A
-a10 = $10
+RAM_CHARAC = $07
+RAM_ENDCHR = $08
+RAM_TRMPOS = $09
+RAM_VERCK = $0A
+RAM_SUBFLG = $10
 a40 = $40
-a41 = $41
+RAM_DATPTR = $41
 a42 = $42
-a43 = $43
+RAM_INPPTR = $43
 a44 = $44
 a46 = $46
-a48 = $48
-a49 = $49
-aFA = $FA
-aFE = $FE
-aFF = $FF
+RAM_OPPTR = $48
+RAM_FORPNT = $49
+RAM_XSTOP = $FA
+RAM_SEDT2 = $FE
+RAM_LOFBUF = $FF
 ;
 ; **** ZP POINTERS **** 
 ;
-p00 = $00
+RAM_PDIR = $00
 p06 = $06
-p09 = $09
-p11 = $11
-p22 = $22
-p31 = $31
+RAM_STREND = $31
 p40 = $40
 p42 = $42
-p43 = $43
 ;
 ; **** FIELDS **** 
 ;
 f0340 = $0340
 f0360 = $0360
-f0800 = $0800
 f0828 = $0828
 f0900 = $0900
 f0924 = $0924
@@ -78,30 +73,16 @@ f0FC7 = $0FC7
 ;
 ; **** ABSOLUTE ADRESSES **** 
 ;
-a02BD = $02BD
-a0314 = $0314
 a0315 = $0315
 a0FE1 = $0FE1
 a0FE3 = $0FE3
-a659D = $659D
-a7049 = $7049
 aE000 = $E000
-aFC00 = $FC00
+aE008 = $E008
 aFF07 = $FF07
 aFF08 = $FF08
 aFF09 = $FF09
 aFF0A = $FF0A
 aFF0B = $FF0B
-aFF0E = $FF0E
-aFF0F = $FF0F
-aFF10 = $FF10
-aFF11 = $FF11
-aFF12 = $FF12
-aFF13 = $FF13
-aFF15 = $FF15
-aFF16 = $FF16
-aFF17 = $FF17
-aFF19 = $FF19
 ;
 ; **** POINTERS **** 
 ;
@@ -111,7 +92,6 @@ p0101 = $0101
 p01FF = $01FF
 p03A0 = $03A0
 p080F = $080F
-p0C00 = $0C00
 p0CA0 = $0CA0
 p0E58 = $0E58
 pF8F0 = $F8F0
@@ -120,7 +100,13 @@ pFF00 = $FF00
 ; **** EXTERNAL JUMPS **** 
 ;
 e4020 = $4020
-e4030 = $4030
+;
+; **** PREDEFINED LABELS **** 
+;
+RAM_DORES = $000F
+RAM_CINV = $0314
+RAM_TEDATR = $0800
+RAM_TEDSCN = $0C00
 
         * = $1001
 
@@ -129,7 +115,7 @@ e4030 = $4030
         BRK #$00
 j1010   JMP j2B0A
 
-        ORA (p00,X)
+        ORA (RAM_PDIR,X) ;PDIR    7501 on-chip data-direction register
 a1015   .BYTE $03
 a1016   .BYTE $01
 a1017   .BYTE $04
@@ -284,10 +270,9 @@ b10AC   LDA a101E
         STA a1023
 b116F   RTS 
 
-s1170   .BYTE $AD
-        PHP 
-        CPX #$EE
-        ADC (p11),Y
+a1171   =*+$01
+s1170   LDA aE008
+        INC a1171
         RTS 
 
 s1177   LDA a1015
@@ -316,29 +301,29 @@ f11AD   .BYTE $08,$07,$06,$05,$04,$03,$02,$01
 s11BD   LDA a1015
         CLC 
         ROR 
-        STA aFA
+        STA RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
         LDA a1017
         CLC 
         ROR 
         CLC 
-        ADC aFA
+        ADC RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
         STA a1199
         RTS 
 
 j11D0   LDA a1016
         CLC 
         ROR 
-        STA aFA
+        STA RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
         LDA a1018
         CLC 
         ROR 
         CLC 
-        ADC aFA
+        ADC RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
         STA a119A
         JMP j11E7
 
-a11E6   =*+$01
-a11E5   ORA a04
+a11E5   .BYTE $05
+a11E6   .BYTE $04
 j11E7   TYA 
         PHA 
         LDA a1199
@@ -430,7 +415,7 @@ s129F   LDA a129E
         TAY 
 b12AA   JSR s1318
         LDA #$00
-        STA aFF15
+        STA $FF15    ;Background color register
         RTS 
 
         LDA #$01
@@ -485,49 +470,49 @@ b1337   LDA f12D8,Y
         STA f3C79,Y
         RTS 
 
-s134C   LDA #>p0C00
-        STA aFF
-        LDA #<p0C00
-        STA aFE
+s134C   LDA #>RAM_TEDSCN
+        STA RAM_LOFBUF ;LOFBUF  
+        LDA #<RAM_TEDSCN
+        STA RAM_SEDT2 ;SEDT2   Editor temporary use
         LDX #$00
-b1356   LDA aFE
+b1356   LDA RAM_SEDT2 ;SEDT2   Editor temporary use
         STA f0340,X
-        LDA aFF
+        LDA RAM_LOFBUF ;LOFBUF  
         STA f0360,X
-        LDA aFE
+        LDA RAM_SEDT2 ;SEDT2   Editor temporary use
         CLC 
         ADC #$28
-        STA aFE
-        LDA aFF
+        STA RAM_SEDT2 ;SEDT2   Editor temporary use
+        LDA RAM_LOFBUF ;LOFBUF  
         ADC #$00
-        STA aFF
+        STA RAM_LOFBUF ;LOFBUF  
         INX 
         CPX #$19
         BNE b1356
         RTS 
 
-s1373   LDX a03
-        LDY a02
+s1373   LDX RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDY RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f0340,X
         STA a06
         LDA f0360,X
-        STA a07
+        STA RAM_CHARAC ;CHARAC  Search character
         LDA (p06),Y
         RTS 
 
-j1384   LDX a03
-        LDY a02
+j1384   LDX RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        LDY RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f0340,X
         STA a06
         LDA f0360,X
-        STA a07
+        STA RAM_CHARAC ;CHARAC  Search character
         LDA a04
         STA (p06),Y
-        LDA a07
+        LDA RAM_CHARAC ;CHARAC  Search character
         SEC 
         SBC #$04
-        STA a07
-        LDA a05
+        STA RAM_CHARAC ;CHARAC  Search character
+        LDA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         STA (p06),Y
         RTS 
 
@@ -643,7 +628,7 @@ b1529   LDA #$01
         STA a40
         LDA f15F1,Y
         ADC #$00
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDY a15CE
 j1548   LDA (p40),Y
         CMP #$23
@@ -848,23 +833,24 @@ b17E9   LDA f1462,X
 
 b17F9   LDA #$06
         STA f1422,X
+RAM_BMLUM   =*+$02
         JSR s1804
         JMP j185B
 
 s1804   LDA f13A2,X
         PHA 
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
         PHA 
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA f1442,X
         CLC 
-        ADC a02
-        STA a02
+        ADC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f1442,X
         CLC 
-        ADC a03
-        STA a03
+        ADC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s18AD
@@ -872,29 +858,29 @@ s1804   LDA f13A2,X
         PHA 
         SEC 
         SBC f1442,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s18AD
         PLA 
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         PLA 
         PHA 
         SEC 
         SBC f1442,X
-        STA a02
-        LDA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         PHA 
         SEC 
         SBC f1442,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s18AD
         PLA 
         CLC 
         ADC f1442,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         PLA 
         SEC 
         SBC f1442,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JMP s18AD
 
 j185B   DEC f1442,X
@@ -902,45 +888,45 @@ j185B   DEC f1442,X
 j1860   LDA #$00
         STA a36A2
         LDA #$71
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
         CLC 
         ADC f1442,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$6F
         STA a04
         JSR s18AD
         LDA f13A2,X
         CLC 
         ADC f1442,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         DEC a04
         JSR s18AD
         LDA f13C2,X
         SEC 
         SBC f1442,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         INC a04
         JSR s18AD
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         DEC a04
         JMP s18AD
 
 b18AC   RTS 
 
-s18AD   LDA a02
+s18AD   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STX a18DE
         BMI b18AC
         CMP #$28
         BPL b18AC
-        LDA a03
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         BMI b18AC
         CMP #$18
         BPL b18AC
@@ -953,7 +939,8 @@ b18CA   LDX a18DE
 
 b18CE   JMP j18DF
 
-        .BYTE $FF,$FF,$FF,$FF,$FF,$FF
+        .BYTE $FF,$FF,$FF ;ISC $FFFF,X
+        .BYTE $FF,$FF,$FF ;ISC $FFFF,X
 a18D8   =*+$01
 s18D7   LDA aE000
         INC a18D8
@@ -973,9 +960,9 @@ s18E3   TYA
         TXA 
         PHA 
         LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s33E1
         PLA 
         TAX 
@@ -1033,18 +1020,18 @@ b1985   NOP
         TAY 
         LDA f1971,Y
         ORA #$0E
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA #$EC
         STA a04
         LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JMP j1384
 
 s19AC   STY a19C1
         LDY #$1F
-b19B1   LDA a02
+b19B1   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
 b19B3   CMP f13A2,Y
         BEQ b19C2
         DEY 
@@ -1053,10 +1040,9 @@ b19B3   CMP f13A2,Y
 j19BE   LDA #$00
         RTS 
 
-b19C2   =*+$01
-a19C1   BRK #$A5
-        .BYTE $03,$D9 ;SLO ($D9,X)
-        .BYTE $C2,$13 ;NOP #$13
+a19C1   .BYTE $00
+b19C2   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        CMP f13C2,Y
         BEQ b19D2
         DEY 
         BPL b19B1
@@ -1098,9 +1084,9 @@ a1A22   .BYTE $00
 a1A23   .BYTE $00
 a1A24   .BYTE $00
 a1A25   .BYTE $00,$00,$00,$00,$00
-a1A2B   =*+$01
-a1A2C   =*+$02
-a1A2A   .BYTE $FF,$00,$00 ;ISC $0000,X
+a1A2A   .BYTE $FF
+a1A2B   .BYTE $00
+a1A2C   .BYTE $00
 s1A2D   LDY a1A2A
         BMI b1A11
         LDA a1F29
@@ -1111,16 +1097,12 @@ s1A2D   LDY a1A2A
         STA a1A2C
         JMP (a1A2B)
 
-f1A46   BVC b19EA
-        .BYTE $CF,$04,$24 ;DCP $2404
-f1A4B   .BYTE $1A    ;NOP 
-        .BYTE $1A    ;NOP 
-        AND (p22,X)
-        .BYTE $22    ;JAM 
-        LDA aFF11
+f1A46   .BYTE $50,$A2,$CF,$04,$24
+f1A4B   .BYTE $1A,$1A,$21,$22,$22
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$6F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a1A22
         BEQ b1A69
         LDA a1A23
@@ -1133,9 +1115,9 @@ b1A69   LDA a1A24
         LDA a1A25
         JSR s1A80
         DEC a1A24
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         RTS 
 
 s1A80   PHA 
@@ -1143,36 +1125,36 @@ s1A80   PHA
         ROL 
         ROL 
         AND #$03
-        STA aFF10
+        STA $FF10    ;Voice #2 frequency, bits 8 & 9
         PLA 
         ROL 
         ROL 
         AND #$FC
-        STA aFF0F
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
-b1A92   LDA aFF11
+b1A92   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$0F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$FF
         STA a1A2A
         RTS 
 
         LDA a1A22
         BEQ b1ABA
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$4F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         INC a1A22
         LDA a1A22
         JMP s1A80
 
-b1ABA   LDA aFF11
+b1ABA   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$2F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a1A23
         JSR s1A80
         LDA a1A23
@@ -1218,9 +1200,9 @@ b1B13   RTS
         LDA #$01
         STA a36A2
         LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         JSR s33E1
@@ -1234,22 +1216,22 @@ b1B13   RTS
         TAY 
         LDA f1971,Y
         ORA f1422,X
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA f1482,X
         AND #$07
 j1B4E   TAY 
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC f3872,Y
-        STA a02
-        LDA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC f387A,Y
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         BMI b1B6D
         CMP #$18
         BPL b1B6D
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         BMI b1B6D
         CMP #$28
         BMI b1B79
@@ -1283,9 +1265,9 @@ b1B8F   AND #$F0
 b1BA0   JSR j1384
         PLA 
         TAX 
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STA f13A2,X
-        LDA a03
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         STA f13C2,X
 b1BAF   RTS 
 
@@ -1294,9 +1276,9 @@ b1BAF   RTS
         LDA f1442,X
         BNE b1BD3
         LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         TXA 
@@ -1321,14 +1303,14 @@ b1BE8   LDA #$FF
         DEC a14A2
         RTS 
 
-a1BF7   =*+$01
-a1BF8   =*+$02
-a1BF6   .BYTE $FF,$FF,$FF ;ISC $FFFF,X
+a1BF6   .BYTE $FF
+a1BF7   .BYTE $FF
+a1BF8   .BYTE $FF
 s1BF9   LDA (p40),Y
         CMP #$76
         BNE b1C06
         INY 
-        LDA #$FF
+RAM_BMCOLR LDA #$FF
         STA a1BF6
         RTS 
 
@@ -1361,9 +1343,9 @@ b1C3B   STA a1BF8
         RTS 
 
 s1C40   LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         TXA 
@@ -1376,11 +1358,10 @@ s1C40   LDA f13A2,X
         RTS 
 
 a1C5C   .BYTE $00
-j1C5D   
-        LDA f13A2,X
-        STA a02
+j1C5D   LDA f13A2,X
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         JSR s1373
@@ -1456,20 +1437,19 @@ b1CC7   RTS
         LDA f1422,X
         STA a04
         LDA #$5C
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b1D09   LDY #$03
         JMP s18E3
 
-a1D0E   BRK #$A9
-        BRK #$9D
-        .BYTE $22    ;JAM 
-        .BYTE $14,$A9 ;NOP $A9,X
-        .BYTE $04,$9D ;NOP a9D
-        .BYTE $02    ;JAM 
-b1D19   =*+$01
-        .BYTE $14,$60 ;NOP $60,X
+a1D0E   .BYTE $00
+        LDA #$00
+        STA f1422,X
+        LDA #$04
+        STA f1402,X
+b1D19   RTS 
+
         DEC f1402,X
         BNE b1D19
         LDA #$01
@@ -1479,7 +1459,7 @@ b1D19   =*+$01
         JSR s18D7
         AND #$70
         ORA #$02
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA #$00
         STA a1D0E
         JSR j1C5D
@@ -1537,9 +1517,8 @@ b1DA9   LDA #$02
         STA f1442,X
         RTS 
 
-b1DB0   =*+$01
-a1DAF   BRK #$C9
-        .BYTE $02    ;JAM 
+a1DAF   .BYTE $00
+b1DB0   CMP #$02
         BEQ b1E0A
         LDA f1462,X
         STA a04
@@ -1548,20 +1527,20 @@ a1DAF   BRK #$C9
         TAY 
         LDA f1971,Y
         ORA #$0A
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDY f1442,X
         LDA f13A2,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
-        STA a03
-j1DD4   LDA a02
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+j1DD4   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC f3872,Y
-        STA a02
-        LDA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC f387A,Y
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
         TYA 
@@ -1631,7 +1610,7 @@ b1E5A   RTS
         ASL 
         AND #$70
         ORA #$0C
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA #$EC
         STA a04
         LDY f1422,X
@@ -1655,8 +1634,8 @@ b1E5A   RTS
         STA a1D0E
         JMP j1C5D
 
-a1EAC   =*+$01
-s1EAB   LDA aFC00
+s1EAB   .BYTE $AD
+a1EAC   BRK #$FC
         INC a1EAC
         RTS 
 
@@ -1693,7 +1672,7 @@ b1ED4   RTS
         LDA #$00
         STA a1D0E
         LDA #$7F
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA f1422,X
         STA a04
         JMP j1C5D
@@ -1719,7 +1698,7 @@ b1F1D   JSR s1F2A
 s1F2A   =*+$01
 a1F29   BRK #$B9
         CLI 
-        AND f9D,X
+        AND RAM_EAL,X ;EAL     
         LDX #$13
         STA f13A3,X
         STA f13A4,X
@@ -1861,7 +1840,7 @@ j2032   LDA f1422,X
         ASL 
         AND #$70
         ORA f1442,X
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA #$EC
         STA a1D0E
         JSR j1C5D
@@ -2031,7 +2010,7 @@ b219C   LDA f1482,X
 b21A8   LDA f1442,X
 b21AB   STA a04
         LDA f1462,X
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b21B5   LDA f1482,X
@@ -2046,10 +2025,10 @@ b21B5   LDA f1482,X
         LDY #$07
         JMP s18E3
 
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$2F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a1A22
         SEC 
         SBC #$04
@@ -2058,10 +2037,10 @@ b21B5   LDA f1482,X
         BEQ b21E9
         JMP s1A80
 
-b21E9   LDA aFF11
+b21E9   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$0F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$FF
         STA a1A2A
         RTS 
@@ -2072,10 +2051,10 @@ b21E9   LDA aFF11
         STA a1A2A
         RTS 
 
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$20
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$D0
         JSR s1A80
         DEC a1A22
@@ -2088,10 +2067,10 @@ b21E9   LDA aFF11
         STA a1A2A
         RTS 
 
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$20
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$02
         JSR s1A80
         DEC a1A22
@@ -2163,18 +2142,18 @@ b237B   DEX
         LDA #<p2283
         STA a40
         LDA #>p2283
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDA #$05
         STA a42
         LDA #>p0CA0
         STA a44
         LDA #<p0CA0
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
 b2392   LDY #$27
 b2394   LDA (p40),Y
         CMP #$20
         BEQ b23B6
-        STA (p43),Y
+        STA (RAM_INPPTR),Y ;INPPTR  Vector: INPUT routine
         LDA a44
         PHA 
         SEC 
@@ -2189,7 +2168,7 @@ b2394   LDA (p40),Y
         ADC #$20
         AND #$F0
         ORA #$04
-        STA (p43),Y
+        STA (RAM_INPPTR),Y ;INPPTR  Vector: INPUT routine
         PLA 
         STA a44
 b23B6   DEY 
@@ -2198,13 +2177,13 @@ b23B6   DEY
         CLC 
         ADC #$28
         STA a40
-        LDA a41
+        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA a41
-        LDA a43
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         CLC 
         ADC #$50
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         LDA a44
         ADC #$00
         STA a44
@@ -2250,38 +2229,38 @@ f2420   .BYTE $06,$26
         ROL a06
 f2428   .TEXT "VOIDRUNNER FIVE BEST GAMES AND SCORERS /"
 b2450   LDA #>p0E58
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDA #<p0E58
         STA a40
         LDA #$71
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
 b245C   LDY #$27
 b245E   LDA f2496,Y
         CMP #$20
         BEQ b2476
         STA (p40),Y
-        LDA a41
+        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         PHA 
         SEC 
         SBC #$04
-        STA a41
-        LDA a43
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         STA (p40),Y
         PLA 
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
 b2476   DEY 
         BPL b245E
         LDA a40
         CLC 
         ADC #$28
         STA a40
-        LDA a41
+        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA a41
-        LDA a43
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         SEC 
         SBC #$10
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         AND #$F0
         CMP #$F0
         BNE b245C
@@ -2289,9 +2268,9 @@ b2476   DEY
 
 f2496   .TEXT "EGO TRIP TIME  /   /   ENTER YOUR HANDLE"
 j24BE   LDA #$0C
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDA #$08
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         LDA #$A0
         STA a40
         STA a42
@@ -2308,12 +2287,12 @@ j24D1   DEY
         ADC #$50
         STA a40
         STA a42
-        LDA a41
+        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         SEC 
         SBC #$04
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         JMP j24D1
 
 b24F0   LDY #$00
@@ -2351,12 +2330,12 @@ b2522   LDA a2F81
         JSR s255D
         STA (p40),Y
 b2533   LDA #<p30
-        STA a48
+        STA RAM_OPPTR ;OPPTR   
 b2537   LDA #>p30
-        STA a49
-b253B   DEC a49
+        STA RAM_FORPNT ;FORPNT  Pointer: Index variable for FOR/NEXT
+b253B   DEC RAM_FORPNT ;FORPNT  Pointer: Index variable for FOR/NEXT
         BNE b253B
-        DEC a48
+        DEC RAM_OPPTR ;OPPTR   
         BNE b2537
         JMP j2505
 
@@ -2397,12 +2376,12 @@ s257A   LDA a234C
         CMP #$FF
         BNE b2587
         LDA #$0F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
 b2586   RTS 
 
 b2587   LDA a234C
         ORA #$30
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDY a2579
         LDA f2C9E,Y
         ASL 
@@ -2423,11 +2402,11 @@ b2587   LDA a234C
 s25B3   LDA #<p22A1
         STA a40
         LDA #>p22A1
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDA #<f34D2
         STA a42
         LDA #>f34D2
-        STA a43
+        STA RAM_INPPTR ;INPPTR  Vector: INPUT routine
         LDX #$00
         LDA #$05
         STA a44
@@ -2444,9 +2423,9 @@ b25DA   LDA #$28
         CLC 
         ADC a40
         STA a40
-        LDA a41
+        LDA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         ADC #$00
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         TXA 
         CLC 
         ADC #$28
@@ -2672,8 +2651,8 @@ b2AFE   STA f13A2,X
         RTS 
 
 j2B0A   LDA #$00
-        STA aFF15
-        STA aFF19
+        STA $FF15    ;Background color register
+        STA $FF19    ;Color register #4
         STA a3196
         STA a15CE
         STA a17E2
@@ -2693,16 +2672,16 @@ j2B0A   LDA #$00
         LDA #$20
         STA a30F8
         LDA #<p2BF4
-        STA a0314    ;IRQ
+        STA RAM_CINV ;CINV    IRQ Ram Vector
         LDA #>p2BF4
-        STA a0315    ;IRQ
-        LDA aFF12
+        STA a0315
+        LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         AND #$FB
-        STA aFF12
-        LDA aFF13
+        STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
+        LDA $FF13    ;Bit 0 :    Clock status
         AND #$03
         ORA #$3C
-        STA aFF13
+        STA $FF13    ;Bit 0 :    Clock status
         LDA #$02
         STA aFF0A
         STA aFF09
@@ -2735,38 +2714,38 @@ b2B9B   LDA a2F81
         JMP j2F98
 
 s2BA8   LDA #>p080F
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
 s2BAC   LDA #<p080F
         STA a04
         LDA #$04
-        STA a08
-        STA a09
-        LDA a03
+        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
+        STA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         PHA 
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         PHA 
 b2BBC   JSR j1384
-        INC a02
+        INC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         INC a04
-        DEC a08
+        DEC RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
         BNE b2BBC
         PLA 
         PHA 
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$04
-        STA a08
-        INC a03
-        DEC a09
+        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
+        INC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        DEC RAM_TRMPOS ;TRMPOS  Screen column from last TAB
         BNE b2BBC
         PLA 
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         PLA 
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         RTS 
 
 s2BDC   LDA #$20
 s2BDE   LDX #$00
-b2BE0   STA p0C00,X
+b2BE0   STA RAM_TEDSCN,X ;TEDSCN  TED character pointers
         STA f0D00,X
         STA f0E00,X
         STA f0F00,X
@@ -2790,7 +2769,7 @@ p2BF4   LDA aFF09
 
 b2C01   LDX a2BF0
         LDA f2C65,X
-        STA aFF15
+        STA $FF15    ;Background color register
         CPX #$32
         BEQ b2C25
         LDA aFF0B
@@ -2813,7 +2792,7 @@ b2C25   LDX #$FF
         STA aFF0B
         LDA #$00
         JSR s354D
-        STA aFF15
+        STA $FF15    ;Background color register
         LDA a3196
         BEQ b2C4E
         LDX a3196
@@ -2829,7 +2808,7 @@ b2C4E   JSR s1028
         JSR s2ED9
         JSR s2F82
         LDA #$00
-        STA aFF15
+        STA $FF15    ;Background color register
         JMP j2C17
 
 f2C65   .BYTE $73,$04,$14,$24,$34,$44,$54,$64
@@ -2890,7 +2869,7 @@ b2D16   LDA f2D81,X
         LDA #$01
         STA a2DE2
         LDA #$2E
-        STA aFF17
+        STA $FF17    ;Color register #2
         BNE b2D67
 s2D51   LDX #$09
 b2D53   LDA f34D2,X
@@ -2918,8 +2897,7 @@ b2D69   LDA f2D92,X
 f2D81   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $09,$0A,$0B,$0C,$0B,$0C,$0D,$0E
         .BYTE $07
-f2D92   .TEXT "VOIDRUNNER    CREATED BY   "
-b2DAD   .TEXT "/ / YAK / /  "
+f2D92   .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
 f2DBA   .TEXT "LEVEL /YAK/    LAST SCORE WAS "
 f2DD8   .TEXT "0000000000"
 a2DE2   .BYTE $52
@@ -2936,20 +2914,15 @@ b2DEA   LDA #$06
         AND #$60
         ORA #$12
         STA a2DE2
-        STA aFF16
+        STA $FF16    ;Color register #1
         JMP j2E2B
 
-f2E02   BRK #$10
-        JSR e4030
-        BVC b2E69
-s2E0A   =*+$01
-        BVS b2DAD
-b2E0C   =*+$01
-        BRK #$BD
-        .BYTE $02    ;JAM 
-        ROL a659D
-        BIT a02BD
-        ROL a7049
+f2E02   .BYTE $00,$10,$20,$30,$40,$50,$60,$70
+s2E0A   LDX #$00
+b2E0C   LDA f2E02,X
+        STA f2C65,X
+        LDA f2E02,X
+        EOR #$70
         STA f2C8D,X
         INX 
         CPX #$08
@@ -2993,7 +2966,7 @@ s2E60   CLC
         AND #$80
         BNE b2E6A
         PLA 
-b2E69   RTS 
+        RTS 
 
 b2E6A   PLA 
         AND #$0F
@@ -3003,35 +2976,35 @@ b2E6A   PLA
         RTS 
 
 s2E73   LDA #$00
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$FF
         STA a12D7
         LDA #$04
-        STA a03
-b2E80   LDA a02
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+b2E80   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         PHA 
         JSR s2BA8
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$1C
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s2BA8
         PLA 
-        STA a02
-        LDA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC #$04
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CMP #$14
         BNE b2E80
         RTS 
@@ -3071,11 +3044,11 @@ b2F10   LDA #$01
 b2F15   RTS 
 
 a2F16   .BYTE $00
-b2F17   LDA aFF11
+b2F17   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$F0
         ORA a2F16
         ORA #$30
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         JSR s2F2A
         JMP j2F53
 
@@ -3086,21 +3059,21 @@ s2F2A   LDA a2ED6
         ROL 
         ROL 
         AND #$03
-        STA aFF10
-        STA a10
-        LDA aFF12
+        STA $FF10    ;Voice #2 frequency, bits 8 & 9
+        STA RAM_SUBFLG ;SUBFLG  Flag: subscript ref / user function coll
+        LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         AND #$FC
-        ORA a10
-        STA aFF12
+        ORA RAM_SUBFLG ;SUBFLG  Flag: subscript ref / user function coll
+        STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         PLA 
         CLC 
         ROL 
         ROL 
         AND #$FC
-        STA aFF0E
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
         CLC 
         ADC #$06
-        STA aFF0F
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
 j2F53   LDA a2ED6
@@ -3115,9 +3088,9 @@ j2F53   LDA a2ED6
         STA a2ED5
         DEC a2F16
         BNE b2F80
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$C0
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         JSR s1170
         STA a2ED3
 b2F80   RTS 
@@ -3134,18 +3107,18 @@ b2F85   STX aFF08
         STA a2F81
         RTS 
 
-j2F98   LDA aFF11
+j2F98   LDA $FF11    ;Bits 0-3 : Volume control
         LDY #$01
         STY a33CF
         AND #$CF
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         JSR s3A70
         LDA #$FF
         STA a2094
         STA a12D7
         LDA #$00
         JSR s2BDE
-b2FB5   STA f0800,X
+b2FB5   STA RAM_TEDATR,X ;TEDATR  TED attribute bytes
         STA f0900,X
         STA f0A00,X
         STA f0B00,X
@@ -3247,14 +3220,14 @@ a30AE   .TEXT $00
 s30AF   STX a30AE
         JSR s30FA
         LDA a3098
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a3099
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDY #$00
-b30C1   LDA (p09),Y
+b30C1   LDA (RAM_TRMPOS),Y ;TRMPOS  Screen column from last TAB
         PHA 
         LDA #$08
-        STA a08
+        STA RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
 b30C8   PLA 
         ROL 
         PHA 
@@ -3262,17 +3235,17 @@ b30C8   PLA
         LDA a30F8
         STA a04
         LDA a30F9
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         STY a30F7
         JSR j1384
         LDY a30F7
-b30E0   INC a02
-        DEC a08
+b30E0   INC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC RAM_ENDCHR ;ENDCHR  Flag: scan for quote at end of string
         BNE b30C8
         PLA 
-        INC a03
+        INC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA a3098
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         INY 
         CPY #$08
         BNE b30C1
@@ -3283,18 +3256,18 @@ a30F7   .BYTE $00
 a30F8   .BYTE $20
 a30F9   .BYTE $00
 s30FA   LDY #<p3C00
-        STY a09
+        STY RAM_TRMPOS ;TRMPOS  Screen column from last TAB
         LDY #>p3C00
-        STY a0A
+        STY RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
         TAY 
         BEQ b3115
-b3105   LDA a09
+b3105   LDA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
         CLC 
         ADC #$08
-        STA a09
-        LDA a0A
+        STA RAM_TRMPOS ;TRMPOS  Screen column from last TAB
+        LDA RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
         ADC #$00
-        STA a0A
+        STA RAM_VERCK ;VERCK   Flag: 0 = load 1 - verify
         DEY 
         BNE b3105
 b3115   RTS 
@@ -3312,9 +3285,9 @@ b3121   CMP #$01
         BEQ b3128
         JMP j31D1
 
-b3128   LDA aFF11
+b3128   LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a3117
         CMP a3116
         BEQ b317E
@@ -3354,24 +3327,24 @@ b317E   LDX a3116
         STA f2C65,X
         LDA #$00
         STA a3097
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$C0
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         RTS 
 
 a3195   .BYTE $27
 a3196   .BYTE $00,$9B
 f3198   .BYTE $A1
-        AND (p31),Y
+        AND (RAM_STREND),Y ;STREND  Pointer: end of BASIC arrays (+1)
         JSR s311B
         JMP j2C17
 
         LDA #$00
-        STA aFF15
+        STA $FF15    ;Background color register
         JSR s2F82
         JSR s1028
         LDA #$00
-        STA aFF15
+        STA $FF15    ;Background color register
         LDA a234C
         BMI b31BC
         JSR s257A
@@ -3402,25 +3375,25 @@ b31D8   LDA f2C7D
 
 b31E7   LDA #$18
         STA a31D0
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         INC a31CF
         LDX a31CF
         CPX #$06
         BEQ b3221
         LDA f322B,X
-        STA aFF0E
-        STA aFF0F
-        INC aFF0F
-        LDA aFF10
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
+        INC $FF0F    ;Voice #2 frequency, bits 0-7
+        LDA $FF10    ;Voice #2 frequency, bits 8 & 9
         AND #$FC
         ORA f3230,X
-        STA aFF10
-        LDA aFF12
+        STA $FF10    ;Voice #2 frequency, bits 8 & 9
+        LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         AND #$FC
         ORA f3230,X
-        STA aFF12
+        STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         RTS 
 
 b3221   LDA #$03
@@ -3436,41 +3409,41 @@ j3236   CMP #$03
         BEQ b323D
         JMP j3399
 
-b323D   LDA aFF0E
+b323D   LDA $FF0E    ;Voice #1 frequency, bits 0-7
         CLC 
         ADC #$82
-        STA aFF0E
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
         CLC 
         ADC #$04
-        STA aFF0F
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
         DEC a31CF
         BNE f322B
         LDA #$0C
         STA a31CF
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$0F
         SEC 
         SBC #$01
         BNE b327E
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$04
         STA a2ED6
         LDA #$00
         STA a3097
         JSR s2F2A
-        LDA aFF0F
+        LDA $FF0F    ;Voice #2 frequency, bits 0-7
         ADC #$05
-        STA aFF0F
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
 b327E   STA a30AE
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$C0
         ORA #$30
         ORA a30AE
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDX #$32
 b3290   LDA f2C65,X
         BEQ b32B1
@@ -3496,9 +3469,9 @@ j32B5   LDA a17E2
         LDA f3429,Y
         STA a33CE
         LDA f3431,Y
-        STA aFF16
+        STA $FF16    ;Color register #1
         LDA #$71
-        STA aFF17
+        STA $FF17    ;Color register #2
         LDA #$07
         STA a3398
         LDA #$00
@@ -3514,14 +3487,14 @@ b32E0   LDA a3097
         STA a3196
         JSR s351B
         LDA #$05
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDX #$00
         LDY #$00
 b32F8   DEX 
         BNE b32F8
         DEY 
         BNE b32F8
-        DEC a02
+        DEC RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         BNE b32F8
         STX a12D7
         INC a2CFE
@@ -3584,8 +3557,8 @@ b3388   INC a34EE
 b3395   JMP j2F98
 
 a3398   .BYTE $00
-j3399   INC aFF0E
-        INC aFF0F
+j3399   INC $FF0E    ;Voice #1 frequency, bits 0-7
+        INC $FF0F    ;Voice #2 frequency, bits 0-7
         DEC a31CF
         BEQ b33A5
 b33A4   RTS 
@@ -3615,17 +3588,17 @@ b33A5   LDA #$08
 
 a33CE   .BYTE $00
 a33CF   .BYTE $00
-s33D0   LDA a02
+s33D0   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         BPL b33D5
 b33D4   RTS 
 
 b33D5   CMP #$28
         BPL b33D4
-        LDA a03
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         BMI b33D4
         CMP #$18
         BPL b33D4
-s33E1   LDA a03
+s33E1   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CMP #$18
         BNE b33E8
         RTS 
@@ -3634,20 +3607,20 @@ b33E8   LDA a36A2
         BNE b33F0
         JMP j1384
 
-b33F0   LDA a03
+b33F0   LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         AND #$03
         TAY 
         LDA a04
         PHA 
         LDA f3411,Y
         STA a04
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         AND #$03
         CLC 
         ADC a04
         STA a04
         LDA #$08
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         JSR j1384
         PLA 
         STA a04
@@ -3679,21 +3652,21 @@ b3476   LDA #$00
         STA a31CF
         TAX 
 b347C   LDA #$71
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA f3439,X
-        STA a03
-        STX a02
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
+        STX RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
 j3487   JSR s33D0
-        LDX a02
-        LDA a05
+        LDX RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         AND #$F0
         SEC 
         SBC #$10
         CMP #$F0
         BEQ b34A0
         ORA #$01
-        STA a05
-        DEC a03
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
+        DEC RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JMP j3487
 
 b34A0   INC f3439,X
@@ -3725,29 +3698,29 @@ f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
         .BYTE $01,$00,$01,$01,$01,$01,$01,$00
         .BYTE $00,$05,$01,$07,$00,$03,$03,$03
 s351B   LDA #$00
-        STA a02
-        STA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$09
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
 b3525   JSR s2BAC
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
         ADC #$04
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         CMP #$28
         BNE b3525
         LDA #$00
-        STA a02
-        LDA a03
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CLC 
         ADC #$04
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         CMP #$18
         BNE b3525
-        LDA #<pF8F0
-        STA aFF0E
-        LDA #>pF8F0
-        STA aFF0F
+        LDA #$F0
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
+        LDA #$F8
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
 s354D   NOP 
@@ -3772,26 +3745,26 @@ b3569   LDX #$03
         CLC 
         ROR 
         STA a30AE
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$03
         ORA a30AE
         ORA #$40
-        STA aFF11
-        LDA aFF0E
+        STA $FF11    ;Bits 0-3 : Volume control
+        LDA $FF0E    ;Voice #1 frequency, bits 0-7
         SEC 
         SBC #$04
-        STA aFF0E
-        STA aFF0F
-        DEC aFF0F
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
+        STA $FF0F    ;Voice #2 frequency, bits 0-7
+        DEC $FF0F    ;Voice #2 frequency, bits 0-7
 b358F   LDA f3560,X
         BMI b35A8
         LDA a3558,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$00
         STA a04
         STA a36A2
         LDA a355C,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s361F
 b35A8   DEX 
         BPL b358F
@@ -3804,9 +3777,9 @@ b35A8   DEX
 b35BA   LDA f3560
         BMI b35CC
         LDA a3558,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a355C,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s361F
 b35CC   DEX 
         BPL b35BA
@@ -3814,7 +3787,7 @@ b35CC   DEX
         STA a36A2
         JSR s36A5
         LDA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
 j35DC   LDA #$E0
         STA a2ED6
 b35E1   JSR s2F2A
@@ -3825,17 +3798,17 @@ b35E6   DEX
         LDA a2ED6
         CMP #$80
         BNE b35E1
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         SEC 
         SBC #$04
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         AND #$0F
         CMP #$0F
         BEQ b3605
         JMP j35DC
 
 b3605   LDA #$00
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         RTS 
 
 a360B   .BYTE $00
@@ -3852,9 +3825,9 @@ b3613   DEY
 
 s361F   LDY #$07
         STX a30AE
-        LDA a02
+        LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STA a36A3
-        LDA a03
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         STA a36A4
 b362E   TYA 
         STA a30F7
@@ -3867,15 +3840,15 @@ b3639   EOR #$07
         ASL 
         ASL 
         ORA #$06
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA a36A4
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         TYA 
         CLC 
         ADC a31CF
         CLC 
         ADC a36A3
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s33D0
         LDY a30F7
         LDA a36A3
@@ -3883,23 +3856,23 @@ b3639   EOR #$07
         SBC a31CF
         SEC 
         SBC a30F7
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         JSR s33D0
         LDA a36A3
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a30F7
         CLC 
         ADC a36A4
         CLC 
         ADC a31CF
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s33D0
         LDA a36A4
         SEC 
         SBC a30F7
         SEC 
         SBC a31CF
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         JSR s33D0
         LDY a30F7
         DEY 
@@ -3919,19 +3892,19 @@ s36A5   LDX #$03
 b36A7   LDA f3560,X
         BMI b36D3
         LDA a3558,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$42
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         CPX #$00
         BNE b36BD
         LDA #$75
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
 b36BD   LDA #$E0
         CLC 
         ADC f3560,X
         STA a04
         LDA a355C,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         STX a30AE
         JSR s33D0
         LDX a30AE
@@ -4063,9 +4036,9 @@ b37DA   LDA f3733
         BPL b37D9
         LDX #$03
 b37EE   LDA a3558,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a355C,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s3832
@@ -4075,13 +4048,13 @@ j3803   LDA #$00
         STA a36A2
         LDX #$03
 b380A   LDA f3733,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STA a3558,X
         LDA f3737,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         STA a355C,X
         LDA f382E,X
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA #$E0
         CLC 
         ADC f3560,X
@@ -4092,12 +4065,12 @@ b380A   LDA f3733,X
 b382D   RTS 
 
 f382E   .BYTE $75,$42,$42,$42
-s3832   LDA a02
+s3832   LDA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         STX a30AE
         BMI b382D
         CMP #$28
         BPL b382D
-        LDA a03
+        LDA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         BMI b382D
         CMP #$18
         BPL b382D
@@ -4165,9 +4138,9 @@ s38B6   LDA a2F81
         RTS 
 
 s38DF   LDA f388A,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f388E,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
         JSR s3968
@@ -4199,13 +4172,13 @@ b3927   ASL
         ASL 
         AND #$70
         ORA #$07
-        STA a05
+        STA RAM_ZPVEC2 ;ZPVEC2  Temp (renumber)
         LDA f3882,Y
         STA a04
         LDA f388A,X
-        STA a02
+        STA RAM_SRCHTK ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f388E,X
-        STA a03
+        STA RAM_ZPVEC1 ;ZPVEC1  Temp (renumber)
         STX a30AE
         JSR s1373
         LDX a30AE
@@ -4248,9 +4221,9 @@ s3988   LDA a1F29
         BNE b3985
         LDA a3987
         BNE b399B
-        LDA aFF11
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$EF
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
 b399A   RTS 
 
 b399B   LDA a3986
@@ -4259,18 +4232,18 @@ b399B   LDA a3986
         ROL 
         AND #$03
         STA a39D9
-        LDA aFF12
+        LDA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         AND #$FC
         ORA a39D9
-        STA aFF12
+        STA $FF12    ;Bit 0-1 : Voice #1 frequency, bits 8 & 9
         LDA a3986
         ASL 
         ASL 
         AND #$FC
-        STA aFF0E
-        LDA aFF11
+        STA $FF0E    ;Voice #1 frequency, bits 0-7
+        LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$1F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a3986
         SEC 
         SBC #$08
@@ -4288,7 +4261,7 @@ s39DE   LDA #$C0
         STA a33CF
         STA a2ED6
         LDA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA #$10
         STA a3987
 b39F0   JSR s2F2A
@@ -4310,7 +4283,7 @@ b39F7   DEY
         SBC #$04
         STA a3987
         ORA #$30
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         CMP #$30
         BNE b39F0
         LDA #$F0
@@ -4348,7 +4321,7 @@ b3A40   LDY f1F97,X
         INC a3987
 b3A66   LDA a3987
         ORA #$30
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         RTS 
 
 a3A6F   .BYTE $00
@@ -4357,7 +4330,7 @@ s3A70   LDY a17E2
         LDA f15D3,Y
         STA a40
         LDA f15F1,Y
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDY #$00
 b3A81   LDA (p40),Y
         STA f30A4,Y
@@ -4438,7 +4411,7 @@ b3AED   LDA a2F81
         LDA f15D3,X
         STA a40
         LDA f15F1,X
-        STA a41
+        STA RAM_DATPTR ;DATPTR  Pointer: Current DATA item address
         LDY #$04
 b3B13   LDA (p40),Y
         STA f0F76,Y
@@ -4494,7 +4467,7 @@ b3B81   JSR s3B2A
         CMP #$80
         BNE b3B81
         LDA #$3F
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
 j3B9E   LDA #$20
         STA a3BDB
 b3BA3   JSR s18D7
@@ -4508,8 +4481,8 @@ b3BB0   DEY
         BNE b3BAE
         DEC a3BDB
         BNE b3BA3
-        DEC aFF11
-        LDA aFF11
+        DEC $FF11    ;Bits 0-3 : Volume control
+        LDA $FF11    ;Bits 0-3 : Volume control
         AND #$0F
         BEQ b3BC8
         JMP j3B9E
@@ -4517,7 +4490,7 @@ b3BB0   DEY
 b3BC8   LDX #$F8
         TXS 
         LDA #$00
-        STA aFF11
+        STA $FF11    ;Bits 0-3 : Volume control
         LDA a234B
         BNE b3BD8
         JMP j1010
