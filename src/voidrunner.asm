@@ -7,10 +7,10 @@ RAM_EAL = $9D
 ;
 zp02 = $02
 zp03 = $03
-zp04 = $04
-zp05 = $05
-zp06 = $06
-zp07 = $07
+charToPlot = $04
+colourToPlot = $05
+currScreenPtrLo = $06
+currScreenPtrHi = $07
 zp08 = $08
 zp09 = $09
 zp0A = $0A
@@ -24,8 +24,6 @@ a46 = $46
 RAM_OPPTR = $48
 RAM_FORPNT = $49
 RAM_XSTOP = $FA
-RAM_SEDT2 = $FE
-RAM_LOFBUF = $FF
 ;
 ; **** ZP POINTERS **** 
 ;
@@ -34,8 +32,8 @@ RAM_STREND = $31
 ;
 ; **** FIELDS **** 
 ;
-f0340 = $0340
-f0360 = $0360
+SCREEN_PTR_LO = $0340
+SCREEN_PTR_HI = $0360
 ; **** ABSOLUTE ADRESSES **** 
 ;
 aE000 = $E000
@@ -483,59 +481,73 @@ b1337   LDA f12D8,Y
         STA startOfDynamicCharset+$01,Y
         RTS 
 
+screenRAMLo = $FE
+screenRAMHi = $FF
 ;------------------------------------------------------------------
-;s134C
+;PointScreenArrayToFirstColumn
+; Update the SCREEN_PTR_LO/SCREEN_PTR_HI arrays to point to the 
+; first column in each row (25 rows of 40 columns).
 ;------------------------------------------------------------------
-s134C   LDA #>SCREEN_RAM
-        STA RAM_LOFBUF ;LOFBUF  
+PointScreenArrayToFirstColumn   LDA #>SCREEN_RAM
+        STA screenRAMHi
         LDA #<SCREEN_RAM
-        STA RAM_SEDT2 ;SEDT2   Editor temporary use
+        STA screenRAMLo
+
+        ; Start at zero
         LDX #$00
-b1356   LDA RAM_SEDT2 ;SEDT2   Editor temporary use
-        STA f0340,X
-        LDA RAM_LOFBUF ;LOFBUF  
-        STA f0360,X
-        LDA RAM_SEDT2 ;SEDT2   Editor temporary use
+        ; Set the first byte to be the start of the screen RAM (1st col)
+b1356   LDA screenRAMLo
+        STA SCREEN_PTR_LO,X
+        LDA screenRAMHi
+        STA SCREEN_PTR_HI,X
+
+        ; Increment by 40 bytes to the start of the second row.
+        LDA screenRAMLo
         CLC 
-        ADC #$28
-        STA RAM_SEDT2 ;SEDT2   Editor temporary use
-        LDA RAM_LOFBUF ;LOFBUF  
+        ADC #$28 ; Skip 40 columns
+        STA screenRAMLo
+
+        ; Add any carry to the high byte.
+        LDA screenRAMHi
         ADC #$00
-        STA RAM_LOFBUF ;LOFBUF  
+        STA screenRAMHi
+
         INX 
-        CPX #$19
+        CPX #$19 ; Keep going until 25 rows are done.
         BNE b1356
         RTS 
 
 ;------------------------------------------------------------------
-;s1373
+;Screen_GetPointer
 ;------------------------------------------------------------------
-s1373   LDX zp03 ;ZPVEC1  Temp (renumber)
-        LDY zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA f0340,X
-        STA zp06
-        LDA f0360,X
-        STA zp07 ;CHARAC  Search character
-        LDA (zp06),Y
+Screen_GetPointer
+        LDX zp03
+        LDY zp02
+        LDA SCREEN_PTR_LO,X
+        STA currScreenPtrLo
+        LDA SCREEN_PTR_HI,X
+        STA currScreenPtrHi
+        LDA (currScreenPtrLo),Y
         RTS 
 
 ;------------------------------------------------------------------
-;j1384
+;DrawCharacterOnScreen
 ;------------------------------------------------------------------
-j1384   LDX zp03 ;ZPVEC1  Temp (renumber)
-        LDY zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA f0340,X
-        STA zp06
-        LDA f0360,X
-        STA zp07 ;CHARAC  Search character
-        LDA zp04
-        STA (zp06),Y
-        LDA zp07 ;CHARAC  Search character
+DrawCharacterOnScreen
+        LDX zp03
+        LDY zp02
+        LDA SCREEN_PTR_LO,X
+        STA currScreenPtrLo
+        LDA SCREEN_PTR_HI,X
+        STA currScreenPtrHi
+        LDA charToPlot
+        STA (currScreenPtrLo),Y
+        LDA currScreenPtrHi
         SEC 
         SBC #$04
-        STA zp07 ;CHARAC  Search character
-        LDA zp05 ;ZPVEC2  Temp (renumber)
-        STA (zp06),Y
+        STA currScreenPtrHi
+        LDA colourToPlot
+        STA (currScreenPtrLo),Y
         RTS 
 
 ;------------------------------------------------------------------
@@ -607,33 +619,38 @@ b14C6   INC a14A2
         RTS 
 
 ;------------------------------------------------------------------
-;s14CB
+;RunSequenceFromf13A2
 ;------------------------------------------------------------------
-s14CB   LDX #$00
+RunSequenceFromf13A2
+        LDX #$00
 b14CD   LDA f13A2,X
         BMI b14D9
         TXA 
         PHA 
-        JSR s14E1
+        JSR CallSelectedRoutine
         PLA 
         TAX 
 b14D9   INX 
-        CPX #$20
+        CPX #$20 ; Run all 32 routines
         BNE b14CD
         RTS 
 
 ;------------------------------------------------------------------
-;s14E1
+;CallSelectedRoutine
 ;------------------------------------------------------------------
 a14DF   .BYTE $00
 a14E0   .BYTE $00
-s14E1   LDY f13E2,X
+CallSelectedRoutine
+        ; Uses the value at index in f13E2 to pick a routine to call.
+        ; The valid routines are listed below.
+        LDY f13E2,X
         LDA f14F3,Y
         STA a14DF
         LDA f1503,Y
         STA a14E0
         JMP (a14DF)
 
+; s17E3 ($17E3)
 f14F3   .BYTE $E3,$81,$14,$B0,$C8,$1A,$5B,$D5
         .BYTE $10,$81,$81,$81,$81,$D5,$7A,$7A
 f1503   .BYTE $17,$19,$1B,$1B,$1C,$1D,$1E,$1E
@@ -657,11 +674,11 @@ b1529   LDA #$01
         LDY a17E2
         LDA #$01
         STA a1513
-        LDA f15D3,Y
+        LDA BgrndAnimationData1,Y
         CLC 
         ADC #$15
         STA RAM_DATPTR_LO
-        LDA f15F1,Y
+        LDA BgrndAnimationData2,Y
         ADC #$00
         STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY a15CE
@@ -742,11 +759,11 @@ a15CF   .BYTE $00
 a15D0   .BYTE $00
 a15D1   .BYTE $00
 a15D2   .BYTE $00
-f15D3   .BYTE $0F,$47,$7F,$B4,$DD,$FF,$6D,$A9
+BgrndAnimationData1   .BYTE $0F,$47,$7F,$B4,$DD,$FF,$6D,$A9
         .BYTE $DB,$0E,$2F,$52,$74,$A6,$D9,$10
         .BYTE $3C,$64,$97,$C4,$E9,$1C,$4F,$76
         .BYTE $BE,$F1,$24,$4B,$80,$A3
-f15F1   .BYTE $16,$16,$16,$16,$16,$16,$26,$26
+BgrndAnimationData2   .BYTE $16,$16,$16,$16,$16,$16,$26,$26
         .BYTE $26,$27,$27,$27,$27,$27,$27,$28
         .BYTE $28,$28,$28,$28,$28,$29,$29,$29
         .BYTE $29,$29,$2A,$2A,$2A,$2A,$2F,$59
@@ -842,9 +859,14 @@ b17BE   RTS
 a17BF   .BYTE $30
 a17C0   .BYTE $09
 a17C1   .BYTE $01
-s17C2   DEC a17BF
+
+;------------------------------------------------------------------
+; UpdateBackgroundAnimationData
+;------------------------------------------------------------------
+UpdateBackgroundAnimationData
+        DEC a17BF
         BNE b17CF
-        JSR s14CB
+        JSR RunSequenceFromf13A2
         LDA #$30
         STA a17BF
 b17CF   DEC a17C1
@@ -857,6 +879,7 @@ b17CF   DEC a17C1
 b17E1   RTS 
 
 a17E2   .BYTE $00
+s17E3
         DEC f1422,X
         BEQ b17E9
         RTS 
@@ -926,7 +949,7 @@ j185B   DEC f1442,X
 j1860   LDA #$00
         STA a36A2
         LDA #$71
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA f13A2,X
         SEC 
         SBC f1442,X
@@ -936,39 +959,39 @@ j1860   LDA #$00
         ADC f1442,X
         STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$6F
-        STA zp04
+        STA charToPlot
         JSR s18AD
         LDA f13A2,X
         CLC 
         ADC f1442,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC zp04
+        DEC charToPlot
         JSR s18AD
         LDA f13C2,X
         SEC 
         SBC f1442,X
         STA zp03 ;ZPVEC1  Temp (renumber)
-        INC zp04
+        INC charToPlot
         JSR s18AD
         LDA f13A2,X
         SEC 
         SBC f1442,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC zp04
+        DEC charToPlot
         JMP s18AD
 
 b18AC   RTS 
 
-s18AD   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+s18AD   LDA zp02
         STX a18DE
         BMI b18AC
         CMP #$28
         BPL b18AC
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        LDA zp03
         BMI b18AC
         CMP #$18
         BPL b18AC
-        JSR s1373
+        JSR Screen_GetPointer
         AND #$80
         BNE b18CA
         JSR s33E1
@@ -1058,14 +1081,14 @@ b1985   NOP
         TAY 
         LDA f1971,Y
         ORA #$0E
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA #$EC
-        STA zp04
+        STA charToPlot
         LDA f13A2,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f13C2,X
         STA zp03 ;ZPVEC1  Temp (renumber)
-        JMP j1384
+        JMP DrawCharacterOnScreen
 
 s19AC   STY a19C1
         LDY #$1F
@@ -1247,14 +1270,14 @@ b1B13   RTS
         PLA 
         TAX 
         LDA #$ED
-        STA zp04
+        STA charToPlot
         INC f1442,X
         LDA f1442,X
         AND #$0F
         TAY 
         LDA f1971,Y
         ORA f1422,X
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA f1482,X
         AND #$07
 j1B4E   TAY 
@@ -1284,7 +1307,7 @@ b1B79   TXA
         PHA 
         LDA #$00
         STA a36A2
-        JSR s1373
+        JSR Screen_GetPointer
         CMP #$EC
         BNE b1B8F
         PLA 
@@ -1295,12 +1318,12 @@ b1B79   TXA
 b1B8F   AND #$F0
         CMP #$E0
         BNE b1BA0
-        LDA (zp06),Y
+        LDA (currScreenPtrLo),Y
         AND #$08
         BNE b1BA0
         LDA #$01
         STA a1F29
-b1BA0   JSR j1384
+b1BA0   JSR DrawCharacterOnScreen
         PLA 
         TAX 
         LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
@@ -1321,7 +1344,7 @@ b1BAF   RTS
         STA a36A2
         TXA 
         PHA 
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         PLA 
         TAX 
         DEC a36A2
@@ -1402,7 +1425,7 @@ j1C5D   LDA f13A2,X
         STA zp03 ;ZPVEC1  Temp (renumber)
         TXA 
         PHA 
-        JSR s1373
+        JSR Screen_GetPointer
         STA a1C5C
         CMP a1D0E
         BNE b1C77
@@ -1413,16 +1436,16 @@ j1C5D   LDA f13A2,X
 b1C77   AND #$F0
         CMP #$E0
         BNE b1C90
-        LDA (zp06),Y
+        LDA (currScreenPtrLo),Y
         AND #$08
         BNE b1C90
-        LDA zp04
+        LDA charToPlot
         AND #$F0
         CMP #$D0
         BEQ b1C90
         LDA #$01
         STA a1F29
-b1C90   JSR j1384
+b1C90   JSR DrawCharacterOnScreen
         PLA 
         TAX 
         LDA #$00
@@ -1473,9 +1496,9 @@ b1CC7   RTS
         LDA #$00
         STA a1D0E
         LDA f1422,X
-        STA zp04
+        STA charToPlot
         LDA #$5C
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b1D09   LDY #$03
@@ -1493,11 +1516,11 @@ b1D19   RTS
         LDA #$01
         STA f1402,X
         LDA #$EC
-        STA zp04
+        STA charToPlot
         JSR s18D7
         AND #$70
         ORA #$02
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA #$00
         STA a1D0E
         JSR j1C5D
@@ -1559,13 +1582,13 @@ a1DAF   .BYTE $00
 b1DB0   CMP #$02
         BEQ b1E0A
         LDA f1462,X
-        STA zp04
+        STA charToPlot
         LDA f1482,X
         STA a1DAF
         TAY 
         LDA f1971,Y
         ORA #$0A
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDY f1442,X
         LDA f13A2,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
@@ -1583,7 +1606,7 @@ j1DD4   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         PHA 
         TYA 
         PHA 
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         PLA 
         TAY 
         PLA 
@@ -1648,9 +1671,9 @@ b1E5A   RTS
         ASL 
         AND #$70
         ORA #$0C
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA #$EC
-        STA zp04
+        STA charToPlot
         LDY f1422,X
         LDA f2C9E,Y
         CLC 
@@ -1710,15 +1733,15 @@ b1ED4   RTS
         LDA #$00
         STA a1D0E
         LDA #$7F
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA f1422,X
-        STA zp04
+        STA charToPlot
         JMP j1C5D
 
 b1F06   LDY #$03
         JMP s18E3
 
-s1F0B   JSR s2AFA
+s1F0B   JSR Initializef13A2
         LDX #$09
 b1F10   LDA SCREEN_RAM + $03C7,X
         STA CurrentScore,X
@@ -1871,7 +1894,7 @@ b200F   RTS
         CMP #$28
         BPL b2053
 j2032   LDA f1422,X
-        STA zp04
+        STA charToPlot
         LDA f13A2,X
         ASL 
         ASL 
@@ -1879,7 +1902,7 @@ j2032   LDA f1422,X
         ASL 
         AND #$70
         ORA f1442,X
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA #$EC
         STA a1D0E
         JSR j1C5D
@@ -2047,9 +2070,9 @@ b219C   LDA f1482,X
         LDA f1422,X
         BNE b21AB
 b21A8   LDA f1442,X
-b21AB   STA zp04
+b21AB   STA charToPlot
         LDA f1462,X
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         JMP j1C5D
 
 b21B5   LDA f1482,X
@@ -2165,7 +2188,7 @@ a234C   .BYTE $FF
 ;------------------------------------------------------------------
 DisplayHiScoreScreen
         JSR ClearScreen
-        JSR s351B
+        JSR RunAnAnimationOnScreen
         LDA #$02
         STA a3196
         LDA #$00
@@ -2174,7 +2197,7 @@ DisplayHiScoreScreen
         LDA #$0F
         STA a234C
         LDA #$00
-        JSR s2D01
+        JSR FillColorSequenceData
 
         ; Print title for high score screen
         LDX #$27
@@ -2701,7 +2724,11 @@ b2661   LDA f2E02,X
         .BYTE $28,$24,$23,$FF,$01,$02,$44,$44
         .BYTE $FF,$FE,$04,$24,$23,$40,$01,$07
         .BYTE $44,$00,$04,$24,$FE,$00,$FD
-s2AFA   LDX #$1F
+
+;------------------------------------------------------------------
+; Initializef13A2
+;------------------------------------------------------------------
+Initializef13A2   LDX #$1F
         LDA #$FF
 b2AFE   STA f13A2,X
         DEX 
@@ -2722,8 +2749,8 @@ Initialize
         STA a17E2
         STA a2CFE
         STA a36A2
-        JSR s2AFA
-        JSR s134C
+        JSR Initializef13A2
+        JSR PointScreenArrayToFirstColumn
         LDA #$FF
         STA a234C
         LDA #<pFF00
@@ -2739,10 +2766,10 @@ Initialize
         STA a30F8
 
         ; When an interrupt happens INTERRUPT_ROUTINE is checked for a
-        ; user routine to perform. Set it to RoutinToPerformAtInterrupt.
-        LDA #<RoutinToPerformAtInterrupt
+        ; user routine to perform. Set it to RoutineToPerformAtInterrupt.
+        LDA #<RoutineToPerformAtInterrupt
         STA INTERRUPT_ROUTINE
-        LDA #>RoutinToPerformAtInterrupt
+        LDA #>RoutineToPerformAtInterrupt
         STA INTERRUPT_ROUTINE + $01
 
         ; Clear bit 2 of $FF12 so that custom character sets are enabled.
@@ -2774,14 +2801,18 @@ Initialize
 
         JSR ClearScreen
 
-b2B73   LDA currentJoystick1Reading
-        AND #$40
-        BEQ b2B73
-        JSR s2CFF
-        JSR s2E0A
-        JSR s2E73
-        JSR s2D0A
-b2B86   JSR s3AD9
+        ; Wait for the user to release the fire button.
+Init_WaitForFire
+        LDA currentJoystick1Reading
+        AND #$40 ; Fire
+        BEQ Init_WaitForFire
+
+        JSR ResetColorSequenceData
+        JSR InitializeColorSequenceData
+        JSR WriteStuffToScreen
+        JSR WriteTitleScreenText
+
+b2B86   JSR UpdateBackgroundAnimation
         DEC a2BF1
         BNE b2B9B
         DEC a2BF2
@@ -2790,40 +2821,51 @@ b2B86   JSR s3AD9
         BNE b2B9B
         JMP DisplayHiScoreScreen
 
+        ; Keep looping until the user presses fire to start a game.
+        ; currentJoystick1Reading gets updated by RoutineToPerformAtInterrupt
+        ; at every raster/timer interrupt.
 b2B9B   LDA currentJoystick1Reading
-        AND #$40
+        AND #$40 ; Fire
         BNE b2B86
-        JSR s2D51
-        JMP j2F98
 
+        ; THe player has pressed fire, start the game.
+        JSR InitializeScoresAndLives
+        JMP LoadEnterLevelScreen
+
+;------------------------------------------------------------------
+; s2BA8
+;------------------------------------------------------------------
 s2BA8   LDA #>COLOR_RAM + $000F
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
+;------------------------------------------------------------------
+; s2BAC
+;------------------------------------------------------------------
 s2BAC   LDA #<COLOR_RAM + $000F
-        STA zp04
+        STA charToPlot
         LDA #$04
-        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
-        STA zp09 ;TRMPOS  Screen column from last TAB
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp08 
+        STA zp09 
+        LDA zp03 
         PHA 
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         PHA 
-b2BBC   JSR j1384
-        INC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        INC zp04
-        DEC zp08 ;ENDCHR  Flag: scan for quote at end of string
+b2BBC   JSR DrawCharacterOnScreen
+        INC zp02 
+        INC charToPlot
+        DEC zp08 
         BNE b2BBC
         PLA 
         PHA 
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA #$04
-        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
-        INC zp03 ;ZPVEC1  Temp (renumber)
-        DEC zp09 ;TRMPOS  Screen column from last TAB
+        STA zp08 
+        INC zp03 
+        DEC zp09 
         BNE b2BBC
         PLA 
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         PLA 
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03
         RTS 
 
 ClearScreen
@@ -2842,7 +2884,11 @@ interruptCount   .BYTE $FF
 a2BF1   .BYTE $12
 a2BF2   .BYTE $3A
 a2BF3   .BYTE $0C
-RoutinToPerformAtInterrupt
+
+;------------------------------------------------------------------
+; RoutineToPerformAtInterrupt
+;------------------------------------------------------------------
+RoutineToPerformAtInterrupt
         LDA RASTER_INTERRUPT_STATUS
         AND #$02
         BNE ProcessRasterInterrupt
@@ -2943,18 +2989,29 @@ f2C9E   .BYTE $10,$11,$13,$14,$16,$17,$18,$1A
         .BYTE $20,$22,$24,$26,$28,$2A,$2C,$2E
 a2CFE   .BYTE $00
 
-s2CFF   LDA #$00
-s2D01   LDX #$32
+;------------------------------------------------------------------
+; ResetColorSequenceData
+; Reset the color sequence data to zeros.
+;------------------------------------------------------------------
+ResetColorSequenceData
+        LDA #$00
+FillColorSequenceData
+        LDX #$32
 b2D03   STA colorSequence,X
         DEX 
         BPL b2D03
         RTS 
 
-s2D0A   
+;------------------------------------------------------------------
+; WriteTitleScreenText
+;------------------------------------------------------------------
+WriteTitleScreenText   
+        ; Turn on multi-color mode on the graphics chip ($FF07)
         LDA aFF07
         AND #$EF
         ORA #$10
         STA aFF07
+
         LDX #$10
 b2D16   LDA TitleScreenText,X
         STA SCREEN_RAM + $01C4,X
@@ -2965,6 +3022,7 @@ b2D16   LDA TitleScreenText,X
         STA SCREEN_RAM + $01EC,X
         STA SCREEN_RAM + $014C,X
         STA SCREEN_RAM + $028C,X
+
         LDA #$0A
         STA COLOR_RAM + $01C4,X
         STA COLOR_RAM + $01EC,X
@@ -2976,10 +3034,16 @@ b2D16   LDA TitleScreenText,X
         BPL b2D16
         LDA #$01
         STA a2DE2
+
         LDA #$2E
         STA $FF17    ;Color register #2
-        BNE b2D67
-s2D51   LDX #$09
+        BNE b2D67 ; Always jump?
+
+;------------------------------------------------------------------
+; InitializeScoresAndLives
+;------------------------------------------------------------------
+InitializeScoresAndLives
+        LDX #$09
 b2D53   LDA CurrentScore,X
         STA LastScore,X
         LDA #$30
@@ -2990,6 +3054,9 @@ b2D53   LDA CurrentScore,X
         STA LivesLeftText
         RTS 
 
+;------------------------------------------------------------------
+; WriteTitleScreenText continnued.
+;------------------------------------------------------------------
 b2D67   LDX #$27
 b2D69   LDA TitleTop,X
         STA SCREEN_RAM + $0028,X
@@ -3027,7 +3094,11 @@ b2DEA   LDA #$06
         JMP j2E2B
 
 f2E02   .BYTE $00,$10,$20,$30,$40,$50,$60,$70
-s2E0A   LDX #$00
+;------------------------------------------------------------------
+; InitializeColorSequenceData
+;------------------------------------------------------------------
+InitializeColorSequenceData
+        LDX #$00
 b2E0C   LDA f2E02,X
         STA colorSequence,X
         LDA f2E02,X
@@ -3036,6 +3107,7 @@ b2E0C   LDA f2E02,X
         INX 
         CPX #$08
         BNE b2E0C
+
         LDX #$1F
 b2E21   LDA f2EB3,X
         STA f2C6D,X
@@ -3084,7 +3156,11 @@ b2E6A   PLA
         AND #$0F
         RTS 
 
-s2E73   LDA #$00
+;------------------------------------------------------------------
+; WriteStuffToScreen
+;------------------------------------------------------------------
+WriteStuffToScreen
+        LDA #$00
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$FF
         STA a12D7
@@ -3224,9 +3300,10 @@ b2F85   STX KEYBOARD_LATCH
         RTS 
 
 ;------------------------------------------------------------------
-;
+; LoadEnterLevelScreen
 ;------------------------------------------------------------------
-j2F98   LDA $FF11    ;Bits 0-3 : Volume control
+LoadEnterLevelScreen
+        LDA $FF11    ;Bits 0-3 : Volume control
         LDY #$01
         STY a33CF
         AND #$CF
@@ -3237,12 +3314,15 @@ j2F98   LDA $FF11    ;Bits 0-3 : Volume control
         STA a12D7
         LDA #$00
         JSR FillScreen
+
+        ; Initialize the color ram
 b2FB5   STA COLOR_RAM,X ;TEDATR  TED attribute bytes
         STA COLOR_RAM + $0100,X
         STA COLOR_RAM + $0200,X
         STA COLOR_RAM + $0300,X
         DEX 
         BNE b2FB5
+
         LDA a2094
         CMP #$FF
         BEQ b2FD1
@@ -3255,43 +3335,51 @@ b2FD1   LDA #$FF
         LDA #$01
         STA a3196
         LDA #$00
-        JSR s2D01
+        JSR FillColorSequenceData
+
+        ; Draw the new level screen, e.g. 'ENTER /YAK/ LEVEL'
         LDX #$04
 b2FE7   LDA #$01
         STA a3099
         LDA f309A,X
         STA a3098
-        LDA f309F,X
-        JSR s30AF
+        LDA txtENTER,X
+        JSR DrawLargeCharacter
+
         LDA #$09
         STA a3099
         LDA f309A,X
         STA a3098
-        LDA f30A4,X
-        JSR s30AF
+        LDA txtLevelName,X
+        JSR DrawLargeCharacter
+
         LDA #$11
         STA a3099
         LDA f309A,X
         STA a3098
-        LDA f30A9,X
-        JSR s30AF
+        LDA txtLEVEL,X
+        JSR DrawLargeCharacter
+
         DEX 
         BPL b2FE7
+
         LDA #>p01FF
         STA a311A
         LDA #<p01FF
         STA a3119
-s3028   =*+$01
+        
         LDA #$00
         STA a3117
         STA a3118
         STA a31CF
         LDA #$11
         STA a3116
+
         LDA #$01
         STA a3097
 b303C   LDA a3097
         BNE b303C
+
         LDA #$32
         STA a3117
         STA a3118
@@ -3303,9 +3391,11 @@ b303C   LDA a3097
         STA a31CF
         LDA #$01
         STA a3119
+
         STA a3097
 b3060   LDA a3097
         BNE b3060
+
         LDX #$07
         LDY #$00
 b3069   LDA f2E02,X
@@ -3315,60 +3405,69 @@ b3069   LDA f2E02,X
         INY 
         DEX 
         BPL b3069
+
         LDA #$77
         STA f2C7D
         LDA #<p0100
         STA a31CF
         LDA #>p0100
         STA a31D0
+
         LDA #$02
         STA a3097
 b308C   LDA a3097
         BNE b308C
         JSR ClearScreen
-        JMP j32B5
+        JMP EnterLevel
 
 a3097   .BYTE $00
 a3098   .BYTE $00
 a3099   .BYTE $00
 f309A   .BYTE $00,$08,$10,$18,$20
-f309F   .TEXT "ENTER"
-f30A4   .TEXT "/YAK/"
-f30A9   .TEXT "LEVEL"
-a30AE   .TEXT $00
-s30AF   STX a30AE
+txtENTER   .TEXT "ENTER"
+txtLevelName   .TEXT "/YAK/"
+txtLEVEL   .TEXT "LEVEL"
+tmpAorX   .TEXT $00
+
+;------------------------------------------------------------------
+; DrawLargeCharacter
+; Draw a large character on the screen. Used by the Game Over and
+; 'ENTER XXXX LEVEL' sequences.
+;------------------------------------------------------------------
+DrawLargeCharacter
+        STX tmpAorX
         JSR s30FA
         LDA a3098
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02
         LDA a3099
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03
         LDY #$00
-b30C1   LDA (zp09),Y ;TRMPOS  Screen column from last TAB
+b30C1   LDA (zp09),Y
         PHA 
         LDA #$08
-        STA zp08 ;ENDCHR  Flag: scan for quote at end of string
+        STA zp08
 b30C8   PLA 
         ROL 
         PHA 
         BCC b30E0
         LDA a30F8
-        STA zp04
+        STA charToPlot
         LDA a30F9
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot
         STY a30F7
-        JSR j1384
+        JSR DrawCharacterOnScreen
         LDY a30F7
-b30E0   INC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        DEC zp08 ;ENDCHR  Flag: scan for quote at end of string
+b30E0   INC zp02
+        DEC zp08
         BNE b30C8
         PLA 
-        INC zp03 ;ZPVEC1  Temp (renumber)
+        INC zp03
         LDA a3098
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02
         INY 
         CPY #$08
         BNE b30C1
-        LDX a30AE
+        LDX tmpAorX
         RTS 
 
 a30F7   .BYTE $00
@@ -3546,6 +3645,7 @@ b323D   LDA $FF0E    ;Voice #1 frequency, bits 0-7
         SEC 
         SBC #$01
         BNE b327E
+
         LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$3F
         STA $FF11    ;Bits 0-3 : Volume control
@@ -3559,17 +3659,17 @@ b323D   LDA $FF0E    ;Voice #1 frequency, bits 0-7
         STA $FF0F    ;Voice #2 frequency, bits 0-7
         RTS 
 
-b327E   STA a30AE
+b327E   STA tmpAorX
         LDA $FF11    ;Bits 0-3 : Volume control
         AND #$C0
         ORA #$30
-        ORA a30AE
+        ORA tmpAorX
         STA $FF11    ;Bits 0-3 : Volume control
         LDX #$32
 b3290   LDA colorSequence,X
         BEQ b32B1
         AND #$0F
-        STA a30AE
+        STA tmpAorX
         LDA colorSequence,X
         AND #$F0
         BEQ b32A6
@@ -3577,14 +3677,18 @@ b3290   LDA colorSequence,X
         SBC #$10
         BNE b32AB
 b32A6   LDA #$00
-        STA a30AE
-b32AB   ORA a30AE
+        STA tmpAorX
+b32AB   ORA tmpAorX
         STA colorSequence,X
 b32B1   DEX 
         BPL b3290
         RTS 
 
-j32B5   LDA a17E2
+;------------------------------------------------------------------
+; EnterLevel
+;------------------------------------------------------------------
+EnterLevel
+        LDA a17E2
         AND #$07
         TAY 
         LDA f3429,Y
@@ -3596,38 +3700,45 @@ j32B5   LDA a17E2
         LDA #$07
         STA a3398
         LDA #$00
-        JSR s2D01
+        JSR FillColorSequenceData
         LDA #$10
         STA a31CF
+
         LDA #$04
         STA a3097
 b32E0   LDA a3097
         BNE b32E0
-        JSR s3461
+
+        JSR DrawNewLevelCascadeAnimation
         LDA #$02
         STA a3196
-        JSR s351B
+        JSR RunAnAnimationOnScreen
+
         LDA #$05
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02
         LDX #$00
         LDY #$00
 b32F8   DEX 
         BNE b32F8
         DEY 
         BNE b32F8
-        DEC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        DEC zp02
         BNE b32F8
+
         STX a12D7
         INC a2CFE
 j3308   LDA #$00
         STA a33CF
         JSR s3564
+
+       ; Main loop?
 b3310   JSR s373D
-        JSR s3897
-        JSR s17C2
+        JSR HandleFirePressed
+        JSR UpdateBackgroundAnimationData
         JSR s2096
         LDA a1F29
         BEQ b3310
+
         LDX #$09
 b3323   LDA SCREEN_RAM + $03C7,X
         STA CurrentScore,X
@@ -3636,14 +3747,14 @@ b3323   LDA SCREEN_RAM + $03C7,X
         BNE b3323
         JSR s1F0B
         JSR s39DE
-b3335   JSR s17C2
+b3335   JSR UpdateBackgroundAnimationData
         JSR s3A2A
         LDA a3987
         BNE b3335
-        JSR s351B
+        JSR RunAnAnimationOnScreen
         LDA #$00
         STA a1F29
-        JSR s2AFA
+        JSR Initializef13A2
         LDX #$03
 b334D   LDA f1F9B,X
         LDY f1F97,X
@@ -3675,7 +3786,7 @@ b3388   INC LivesLeftText
         CMP #$3A
         BNE b3395
         DEC LivesLeftText
-b3395   JMP j2F98
+b3395   JMP LoadEnterLevelScreen
 
 a3398   .BYTE $00
 j3399   INC $FF0E    ;Voice #1 frequency, bits 0-7
@@ -3709,42 +3820,46 @@ b33A5   LDA #$08
 
 a33CE   .BYTE $00
 a33CF   .BYTE $00
-s33D0   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+;------------------------------------------------------------------
+; ModifyAndDrawCharacterOnScreen
+;------------------------------------------------------------------
+ModifyAndDrawCharacterOnScreen
+        LDA zp02
         BPL b33D5
 b33D4   RTS 
 
 b33D5   CMP #$28
         BPL b33D4
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        LDA zp03
         BMI b33D4
         CMP #$18
         BPL b33D4
-s33E1   LDA zp03 ;ZPVEC1  Temp (renumber)
+s33E1   LDA zp03
         CMP #$18
         BNE b33E8
         RTS 
 
 b33E8   LDA a36A2
         BNE b33F0
-        JMP j1384
+        JMP DrawCharacterOnScreen
 
-b33F0   LDA zp03 ;ZPVEC1  Temp (renumber)
+b33F0   LDA zp03
         AND #$03
         TAY 
-        LDA zp04
+        LDA charToPlot
         PHA 
         LDA f3411,Y
-        STA zp04
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA charToPlot
+        LDA zp02
         AND #$03
         CLC 
-        ADC zp04
-        STA zp04
+        ADC charToPlot
+        STA charToPlot
         LDA #$08
-        STA zp05 ;ZPVEC2  Temp (renumber)
-        JSR j1384
+        STA colourToPlot
+        JSR DrawCharacterOnScreen
         PLA 
-        STA zp04
+        STA charToPlot
         RTS 
 
 f3411   .BYTE $0F,$13,$17,$1B
@@ -3759,7 +3874,12 @@ f3439   .BYTE $00,$00,$00,$00,$00,$00,$00,$00
 f344D   .BYTE $00,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00
-s3461   LDX #$13
+
+;------------------------------------------------------------------
+; DrawNewLevelCascadeAnimation
+;------------------------------------------------------------------
+DrawNewLevelCascadeAnimation
+        LDX #$13
         LDY #$00
 b3465   LDA f3415,X
         STA f3439,Y
@@ -3768,25 +3888,25 @@ b3465   LDA f3415,X
         DEX 
         BPL b3465
         LDA #$00
-        STA zp04
+        STA charToPlot
 b3476   LDA #$00
         STA a31CF
         TAX 
 b347C   LDA #$71
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA f3439,X
         STA zp03 ;ZPVEC1  Temp (renumber)
         STX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-j3487   JSR s33D0
+j3487   JSR ModifyAndDrawCharacterOnScreen
         LDX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp05 ;ZPVEC2  Temp (renumber)
+        LDA colourToPlot ;ZPVEC2  Temp (renumber)
         AND #$F0
         SEC 
         SBC #$10
         CMP #$F0
         BEQ b34A0
         ORA #$01
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         DEC zp03 ;ZPVEC1  Temp (renumber)
         JMP j3487
 
@@ -3820,13 +3940,13 @@ f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
         .BYTE $00,$05,$01,$07,$00,$03,$03,$03
 
 ;------------------------------------------------------------------
-;s351B
+;RunAnAnimationOnScreen
 ;------------------------------------------------------------------
-s351B   LDA #$00
+RunAnAnimationOnScreen   LDA #$00
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$09
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
 b3525   JSR s2BAC
         LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         CLC 
@@ -3867,16 +3987,20 @@ WasteAFewCycles
 a3558   .BYTE $13,$14,$15,$16
 a355C   .BYTE $0C,$0C,$0C,$0C
 f3560   .BYTE $07,$00,$00,$01
+
+;------------------------------------------------------------------
+; s3564
+;------------------------------------------------------------------
 s3564   LDA #$20
         STA a31CF
 b3569   LDX #$03
         LDA a31CF
         CLC 
         ROR 
-        STA a30AE
+        STA tmpAorX
         LDA $FF11    ;Bits 0-3 : Volume control
         AND #$03
-        ORA a30AE
+        ORA tmpAorX
         ORA #$40
         STA $FF11    ;Bits 0-3 : Volume control
         LDA $FF0E    ;Voice #1 frequency, bits 0-7
@@ -3890,7 +4014,7 @@ b358F   LDA f3560,X
         LDA a3558,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$00
-        STA zp04
+        STA charToPlot
         STA a36A2
         LDA a355C,X
         STA zp03 ;ZPVEC1  Temp (renumber)
@@ -3953,7 +4077,7 @@ b3613   DEY
         RTS 
 
 s361F   LDY #$07
-        STX a30AE
+        STX tmpAorX
         LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         STA a36A3
         LDA zp03 ;ZPVEC1  Temp (renumber)
@@ -3969,7 +4093,7 @@ b3639   EOR #$07
         ASL 
         ASL 
         ORA #$06
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA a36A4
         STA zp03 ;ZPVEC1  Temp (renumber)
         TYA 
@@ -3978,7 +4102,7 @@ b3639   EOR #$07
         CLC 
         ADC a36A3
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         LDY a30F7
         LDA a36A3
         SEC 
@@ -3986,7 +4110,7 @@ b3639   EOR #$07
         SEC 
         SBC a30F7
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         LDA a36A3
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA a30F7
@@ -3995,14 +4119,14 @@ b3639   EOR #$07
         CLC 
         ADC a31CF
         STA zp03 ;ZPVEC1  Temp (renumber)
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         LDA a36A4
         SEC 
         SBC a30F7
         SEC 
         SBC a31CF
         STA zp03 ;ZPVEC1  Temp (renumber)
-        JSR s33D0
+        JSR ModifyAndDrawCharacterOnScreen
         LDY a30F7
         DEY 
         BMI b369E
@@ -4011,7 +4135,7 @@ b3639   EOR #$07
         DEC a36A2
         JMP b362E
 
-b369E   LDX a30AE
+b369E   LDX tmpAorX
         RTS 
 
 a36A2   .BYTE $00
@@ -4023,20 +4147,20 @@ b36A7   LDA f3560,X
         LDA a3558,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA #$42
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         CPX #$00
         BNE b36BD
         LDA #$75
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
 b36BD   LDA #$E0
         CLC 
         ADC f3560,X
-        STA zp04
+        STA charToPlot
         LDA a355C,X
         STA zp03 ;ZPVEC1  Temp (renumber)
-        STX a30AE
-        JSR s33D0
-        LDX a30AE
+        STX tmpAorX
+        JSR ModifyAndDrawCharacterOnScreen
+        LDX tmpAorX
 b36D3   DEX 
         BPL b36A7
         RTS 
@@ -4106,29 +4230,29 @@ b375C   PLA
         BEQ b377F
         LDA f372F,X
         AND #$03
-        STA a30AE
+        STA tmpAorX
         TYA 
-        EOR a30AE
+        EOR tmpAorX
         TAY 
 b377F   TYA 
         AND #$0C
         BEQ b3791
         LDA f372F,X
         AND #$0C
-        STA a30AE
+        STA tmpAorX
         TYA 
-        EOR a30AE
+        EOR tmpAorX
         TAY 
 b3791   LDA f372F,X
         AND #$F0
         BEQ b37AE
         TYA 
-        STA a30AE
+        STA tmpAorX
         ASL 
         ASL 
         AND #$0C
         STA a30F7
-        LDA a30AE
+        LDA tmpAorX
         ROR 
         ROR 
         AND #$03
@@ -4183,11 +4307,11 @@ b380A   LDA f3733,X
         STA zp03 ;ZPVEC1  Temp (renumber)
         STA a355C,X
         LDA f382E,X
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot ;ZPVEC2  Temp (renumber)
         LDA #$E0
         CLC 
         ADC f3560,X
-        STA zp04
+        STA charToPlot
         JSR s3832
         DEX 
         BPL b380A
@@ -4195,7 +4319,7 @@ b382D   RTS
 
 f382E   .BYTE $75,$42,$42,$42
 s3832   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        STX a30AE
+        STX tmpAorX
         BMI b382D
         CMP #$28
         BPL b382D
@@ -4203,10 +4327,10 @@ s3832   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         BMI b382D
         CMP #$18
         BPL b382D
-        JSR s1373
+        JSR Screen_GetPointer
         AND #$80
         BEQ b386B
-        LDA (zp06),Y
+        LDA (currScreenPtrLo),Y
         AND #$F0
         CMP #$D0
         BNE b385A
@@ -4215,14 +4339,14 @@ s3832   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
 
 b385A   CMP #$E0
         BNE b3866
-        LDA (zp06),Y
+        LDA (currScreenPtrLo),Y
         AND #$0C
         CMP #$0C
         BNE b386B
 b3866   LDA #$01
         STA a1F29
 b386B   JSR s33E1
-        LDX a30AE
+        LDX tmpAorX
         RTS 
 
 f3872   .BYTE $00,$01,$01,$01,$00,$FF,$FF,$FF
@@ -4232,26 +4356,36 @@ f388A   .BYTE $FF,$FF,$FF,$FF
 f388E   .BYTE $FF,$FF,$FF,$FF
 f3892   .BYTE $00,$00,$00,$00
 a3896   .BYTE $C0
-s3897   DEC a3896
+HandleFirePressed
+        DEC a3896
         BEQ b389D
         RTS 
 
 b389D   LDX #$03
 b389F   LDA f388A,X
         BPL b38B0
-        JSR s38B6
+        JSR PrepareFireDataIfFirePressed
 j38A7   DEX 
         BPL b389F
         LDA #$20
         STA a3896
 b38AF   RTS 
 
-b38B0   JSR s38DF
+b38B0   JSR DrawFireAnimation
         JMP j38A7
 
-s38B6   LDA currentJoystick1Reading
-        AND #$40
+;------------------------------------------------------------------
+; PrepareFireDataIfFirePressed   
+;------------------------------------------------------------------
+PrepareFireDataIfFirePressed   
+        ; Check if fire waas pressed. The fire button sets bit 6 (i.e. $40)
+        ; to zero. So 'AND'ing with $40 and getting the Z bit flipped to 0
+        ; means that fire was not pressed. Getting the Z bit flipped to 1
+        ; means that it was pressed.
+        LDA currentJoystick1Reading
+        AND #$40 ; Fire
         BNE b38AF
+        ; Fire was pressed. 
         LDA a3558,X
         STA f388A,X
         LDA a355C,X
@@ -4266,13 +4400,17 @@ s38B6   LDA currentJoystick1Reading
         STA f39DA,X
         RTS 
 
-s38DF   LDA f388A,X
+;------------------------------------------------------------------
+; DrawFireAnimation
+;------------------------------------------------------------------
+DrawFireAnimation
+        LDA f388A,X
         STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
         LDA f388E,X
         STA zp03 ;ZPVEC1  Temp (renumber)
         LDA #$01
         STA a36A2
-        JSR s3968
+        JSR DrawStepInFireAnimation
         LDY f39DA,X
         LDA f388A,X
         CLC 
@@ -4301,19 +4439,19 @@ b3927   ASL
         ASL 
         AND #$70
         ORA #$07
-        STA zp05 ;ZPVEC2  Temp (renumber)
+        STA colourToPlot
         LDA f3882,Y
-        STA zp04
+        STA charToPlot
         LDA f388A,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02
         LDA f388E,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        STX a30AE
-        JSR s1373
-        LDX a30AE
+        STA zp03
+        STX tmpAorX
+        JSR Screen_GetPointer
+        LDX tmpAorX
         AND #$80
         BEQ b3961
-        LDA (zp06),Y
+        LDA (currScreenPtrLo),Y
         JSR s19AC
         BEQ b3960
         BMI b3921
@@ -4326,22 +4464,23 @@ b3927   ASL
 b3960   RTS 
 
 b3961   JSR s33E1
-        LDX a30AE
+        LDX tmpAorX
 b3967   RTS 
 
-s3968   STX a30AE
-        JSR s1373
+DrawStepInFireAnimation
+        STX tmpAorX
+        JSR Screen_GetPointer
         AND #$80
         BEQ b397F
-        LDA (zp06),Y
-        LDX a30AE
+        LDA (currScreenPtrLo),Y
+        LDX tmpAorX
         JSR s19AC
         BEQ b3967
         BMI b3921
         RTS 
 
-b397F   JSR s33D0
-        LDX a30AE
+b397F   JSR ModifyAndDrawCharacterOnScreen
+        LDX tmpAorX
 b3985   RTS 
 
 a3986   .BYTE $00
@@ -4456,13 +4595,13 @@ b3A66   LDA a3987
 a3A6F   .BYTE $00
 s3A70   LDY a17E2
         LDX #$04
-        LDA f15D3,Y
+        LDA BgrndAnimationData1,Y
         STA RAM_DATPTR_LO
-        LDA f15F1,Y
+        LDA BgrndAnimationData2,Y
         STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY #$00
 b3A81   LDA (RAM_DATPTR_LO),Y
-        STA f30A4,Y
+        STA txtLevelName,Y
         STA CurrentLevelText,Y
         INY 
         DEX 
@@ -4519,16 +4658,22 @@ b3ACE   PLA
 b3AD7   RTS 
 
 a3AD8   .BYTE $00
-s3AD9   LDA a3AD8
+;------------------------------------------------------------------
+; UpdateBackgroundAnimation
+; If the player presses 'right' on the joystick, update the background
+; animation.
+;------------------------------------------------------------------
+UpdateBackgroundAnimation
+        LDA a3AD8
         BEQ b3AED
         DEC a3AD8
         LDA currentJoystick1Reading
-        AND #$08
+        AND #$08 ; right
         BNE b3AD7
         LDA #$00
         STA a3AD8
 b3AED   LDA currentJoystick1Reading
-        AND #$08
+        AND #$08 ; right
         BNE b3AD7
         LDA #$F0
         STA a3AD8
@@ -4537,9 +4682,9 @@ b3AED   LDA currentJoystick1Reading
         AND #$0F
         STA a17E2
         LDX a17E2
-        LDA f15D3,X
+        LDA BgrndAnimationData1,X
         STA RAM_DATPTR_LO
-        LDA f15F1,X
+        LDA BgrndAnimationData2,X
         STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
         LDY #$04
 b3B13   LDA (RAM_DATPTR_LO),Y
@@ -4547,7 +4692,7 @@ b3B13   LDA (RAM_DATPTR_LO),Y
         DEY 
         BPL b3B13
 b3B1B   LDA currentJoystick1Reading
-        AND #$08
+        AND #$08 ; right
         BEQ b3B1B
         LDA #$0C
         STA a2BF3
@@ -4555,7 +4700,11 @@ b3B1B   LDA currentJoystick1Reading
 
 a3B28   .BYTE $00
 a3B29   .BYTE $00
-s3B2A   LDX #$08
+;------------------------------------------------------------------
+; RunGameOverAnimation
+;------------------------------------------------------------------
+RunGameOverAnimation
+        LDX #$08
 b3B2C   LDA f3B4A,X
         CLC 
         ADC a3B28
@@ -4565,7 +4714,7 @@ b3B2C   LDA f3B4A,X
         ADC a3B29
         STA a3099
         LDA f3B5A,X
-        JSR s30AF
+        JSR DrawLargeCharacter
         DEX 
         BPL b3B2C
         RTS 
@@ -4584,8 +4733,8 @@ j3B62   LDA #$00
 b3B76   STA a30F9
         LDA #$FF
         STA a12D7
-        JSR s351B
-b3B81   JSR s3B2A
+        JSR RunAnAnimationOnScreen
+b3B81   JSR RunGameOverAnimation
         INC a3B28
         INC a3B29
         LDA a30F9
