@@ -23,7 +23,6 @@ a44 = $44
 a46 = $46
 RAM_OPPTR = $48
 RAM_FORPNT = $49
-RAM_XSTOP = $FA
 ;
 ; **** ZP POINTERS **** 
 ;
@@ -38,7 +37,7 @@ SCREEN_PTR_HI = $0360
 ;
 aE000 = $E000
 aE008 = $E008
-aFF07 = $FF07
+GRAPHICS_CHIP = $FF07
 KEYBOARD_LATCH = $FF08
 RASTER_INTERRUPT_STATUS = $FF09
 INTERRUPT_ENABLE_REGISTER = $FF0A
@@ -76,7 +75,7 @@ SCREEN_RAM = $0C00
         BRK #$00
 
 JumpToInitialize
-        JMP Initialize
+        JMP LaunchGame
 
         ORA (RAM_PDIR,X) ;PDIR    7501 on-chip data-direction register
 a1015   .BYTE $03
@@ -108,9 +107,9 @@ AdvanceBackgroundAnimation
         AND #$07
         TAY 
         ; Use the value of Y (0-7) to pick the subroutine to run.
-        LDA f1041,Y
+        LDA AnimStateMapLo,Y
         STA a103F
-        LDA f1049,Y
+        LDA AnimStateMapHi,Y
         STA a1040
         JMP (a103F) ; $1051 at first pass.
 
@@ -119,15 +118,15 @@ a1040   .BYTE $10
 
 ; This is the set of subroutines to cycle through:
 ; ResetAnimationState ($1051)
-; s1208 ($1208)
-; s126A ($126A)
+; AnimationState1 ($1208)
+; AnimationState2 ($126A)
 ; ResetAnimationState ($1051)
-; s12BF ($12BF)
+; AnimationState3 ($12BF)
 ; ResetAnimationState ($1051)
-; s12B3 ($12B3)
-; s1208 ($1208)
-f1041   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
-f1049   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
+; AnimationState4 ($12B3)
+; AnimationState1 ($1208)
+AnimStateMapLo   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
+AnimStateMapHi   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
 
 ;------------------------------------------------------------------
 ;ResetAnimationState
@@ -189,7 +188,7 @@ b10AC   LDA a101E
         TAX 
         LDA f2C9E,X
         STA a1018
-        JSR s1177
+        JSR ManipulateCharset
         LDA a1027
         CLC 
         ADC #$08
@@ -222,7 +221,7 @@ b10AC   LDA a101E
         BEQ b116F
         LDA #$00
         STA a101D
-        JSR s1170
+        JSR GetRandomValue
         AND #$07
         CLC 
         ADC #$04
@@ -232,7 +231,7 @@ b10AC   LDA a101E
         STA a101A
         LDA f11AD,X
         STA a119B
-        JSR s1170
+        JSR GetRandomValue
         AND #$07
         CLC 
         ADC #$04
@@ -242,13 +241,13 @@ b10AC   LDA a101E
         STA a101B
         LDA f11AD,X
         STA a119C
-        JSR s1170
+        JSR GetRandomValue
         AND #$07
         CLC 
         ADC #$01
         STA a1020
         STA a1021
-        JSR s1170
+        JSR GetRandomValue
         AND #$07
         CLC 
         ADC #$01
@@ -257,23 +256,22 @@ b10AC   LDA a101E
 b116F   RTS 
 
 a1171   =*+$01
-;------------------------------------------------------------------
-;s1170
-;------------------------------------------------------------------
 ;------------------------------------------------------
-; s1170
+; GetRandomValue
 ;------------------------------------------------------
-s1170   LDA aE008
+GetRandomValue
+        LDA aE008
         INC a1171
         RTS 
 
 ;------------------------------------------------------
-; s1177
+; ManipulateCharset
 ;------------------------------------------------------
-s1177   LDA a1015
+ManipulateCharset
+        LDA a1015
         LDX a1021
         BEQ b1185
-        JSR s11BD
+        JSR ManipulateCharsetImpl
         JMP j1188
 
 b1185   STA a1199
@@ -285,6 +283,7 @@ j1188   LDA a1016
 b1193   STA a119A
         JMP j11E7
 
+zpFA = $FA
 a1199   .BYTE $03
 a119A   .BYTE $0B
 a119B   .BYTE $03
@@ -294,29 +293,30 @@ f119D   .BYTE $01,$01,$01,$01,$01,$01,$01,$01
 f11AD   .BYTE $08,$07,$06,$05,$04,$03,$02,$01
         .BYTE $01,$01,$01,$01,$01,$01,$01,$01
 ;------------------------------------------------------
-; s11BD
+; ManipulateCharsetImpl
 ;------------------------------------------------------
-s11BD   LDA a1015
+ManipulateCharsetImpl
+        LDA a1015
         CLC 
         ROR 
-        STA RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
+        STA zpFA 
         LDA a1017
         CLC 
         ROR 
         CLC 
-        ADC RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
+        ADC zpFA 
         STA a1199
         RTS 
 
 j11D0   LDA a1016
         CLC 
         ROR 
-        STA RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
+        STA zpFA 
         LDA a1018
         CLC 
         ROR 
         CLC 
-        ADC RAM_XSTOP ;XSTOP   Save xreg for quick stopkey test
+        ADC zpFA 
         STA a119A
         JMP j11E7
 
@@ -339,16 +339,14 @@ j11E7   TYA
         TAY 
         RTS 
 
-;------------------------------------------------------------------
-;s1208
-;------------------------------------------------------------------
 a11FD   .BYTE $00,$00
 f11FF   .BYTE $00,$08,$10,$18,$20,$28,$30,$38
 a1207   .BYTE $02
+
 ;------------------------------------------------------
-; s1208
+; AnimationState1
 ;------------------------------------------------------
-s1208   DEC a1207
+AnimationState1   DEC a1207
         BEQ b120E
         RTS 
 
@@ -369,15 +367,12 @@ b121B   LDA f11FF,X
         TXA 
         ASL 
         TAX 
-        JSR s129F
+        JSR AnimationState2Impl
         LDX a11FD
         DEX 
         BPL b1218
         RTS 
 
-;------------------------------------------------------------------
-;s126a
-;------------------------------------------------------------------
 f123A   .BYTE $00,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$00,$00,$00
 f124A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
@@ -385,9 +380,10 @@ f124A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
 f125A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $08,$07,$06,$05,$04,$03,$02,$01
 ;------------------------------------------------------
-; s126A
+; AnimationState2
 ;------------------------------------------------------
-s126A   JSR ResetDynamicCharset
+AnimationState2
+       JSR ResetDynamicCharset
         LDX #$0F
 b126F   DEC f124A,X
         BNE b1285
@@ -405,20 +401,18 @@ b1285   TXA
         BMI b1293
         EOR #$0F
 b1293   TAX 
-        JSR s129F
+        JSR AnimationState2Impl
         LDX a11FD
         DEX 
         BPL b126F
         RTS 
 
-;------------------------------------------------------------------
-;s129F
-;------------------------------------------------------------------
 a129E   .BYTE $00
 ;------------------------------------------------------
-; s129F
+; AnimationState2Impl
 ;------------------------------------------------------
-s129F   LDA a129E
+AnimationState2Impl
+        LDA a129E
         BEQ b12AA
         TXA 
         PHA 
@@ -431,34 +425,28 @@ b12AA   JSR UpdateDynamicCharset
         STA $FF15    ;Background color register
         RTS 
 
-;------------------------------------------------------------------
-;s12B3
-;------------------------------------------------------------------
 ;------------------------------------------------------
-; s12B3
+; AnimationState4
 ;------------------------------------------------------
-s12B3
+AnimationState4
         LDA #$01
         STA a129E
-        JSR s126A
+        JSR AnimationState2
+        DEC a129E
+        RTS 
+
+;------------------------------------------------------
+; AnimationState3
+;------------------------------------------------------
+AnimationState3
+        LDA #$01
+        STA a129E
+        JSR AnimationState1
         DEC a129E
         RTS 
 
 ;------------------------------------------------------------------
-;s12BF
-;------------------------------------------------------------------
-;------------------------------------------------------
-; s12BF
-;------------------------------------------------------
-s12BF
-        LDA #$01
-        STA a129E
-        JSR s1208
-        DEC a129E
-        RTS 
-
-;------------------------------------------------------------------
-;ResetDynamicCharset
+; ResetDynamicCharset
 ;------------------------------------------------------------------
 ResetDynamicCharset
         LDX #$7F ; 127 bytes, i.e. 16 characters
@@ -469,7 +457,7 @@ b12D0   STA startOfDynamicCharset,X
         RTS 
 
 ;------------------------------------------------------------------
-;UpdateDynamicCharset
+; UpdateDynamicCharset
 ;------------------------------------------------------------------
 a12D7   .BYTE $FF
 f12D8   .BYTE $00,$02,$04,$06,$20,$22,$24,$26
@@ -508,11 +496,12 @@ b1337   LDA f12D8,Y
 screenRAMLo = $FE
 screenRAMHi = $FF
 ;------------------------------------------------------------------
-;PointScreenArrayToFirstColumn
+; PointScreenArrayToFirstColumn
 ; Update the SCREEN_PTR_LO/SCREEN_PTR_HI arrays to point to the 
 ; first column in each row (25 rows of 40 columns).
 ;------------------------------------------------------------------
-PointScreenArrayToFirstColumn   LDA #>SCREEN_RAM
+PointScreenArrayToFirstColumn
+        LDA #>SCREEN_RAM
         STA screenRAMHi
         LDA #<SCREEN_RAM
         STA screenRAMLo
@@ -542,7 +531,7 @@ b1356   LDA screenRAMLo
         RTS 
 
 ;------------------------------------------------------------------
-;Screen_GetPointer
+; Screen_GetPointer
 ;------------------------------------------------------------------
 Screen_GetPointer
         LDX zp03
@@ -555,7 +544,7 @@ Screen_GetPointer
         RTS 
 
 ;------------------------------------------------------------------
-;DrawCharacterOnScreen
+; DrawCharacterOnScreen
 ;------------------------------------------------------------------
 DrawCharacterOnScreen
         LDX zp03
@@ -574,9 +563,6 @@ DrawCharacterOnScreen
         STA (currScreenPtrLo),Y
         RTS 
 
-;------------------------------------------------------------------
-;s14A4
-;------------------------------------------------------------------
 f13A2   .BYTE $FF
 f13A3   .BYTE $FF
 f13A4   .BYTE $FF
@@ -662,34 +648,51 @@ b14D9   INX
         BNE b14CD
         RTS 
 
+
 ;------------------------------------------------------------------
 ;CallSelectedRoutine
 ;------------------------------------------------------------------
-a14DF   .BYTE $00
-a14E0   .BYTE $00
+SelectedRoutineLo   .BYTE $00
+SelectedRoutineHi   .BYTE $00
 CallSelectedRoutine
         ; Uses the value at index in f13E2 to pick a routine to call.
         ; The valid routines are listed below.
         LDY f13E2,X
-        LDA f14F3,Y
-        STA a14DF
-        LDA f1503,Y
-        STA a14E0
-        JMP (a14DF)
+        LDA SelRoutLo,Y
+        STA SelectedRoutineLo
+        LDA SelRoutHi,Y
+        STA SelectedRoutineHi
+        JMP (SelectedRoutineLo)
 
-; s17E3 ($17E3)
-f14F3   .BYTE $E3,$81,$14,$B0,$C8,$1A,$5B,$D5
+;s17E3  $17E3
+;s1981  $1981
+;s1B14  $1B14
+;s1BB0  $1BB0
+;s1CC8  $1CC8
+;s1D1A  $1D1A
+;s1E5B  $1E5B
+;s1ED5  $1ED5
+;s2010  $2010
+;s1981  $1981
+;s1981  $1981
+;s1981  $1981
+;s1981  $1981
+;s1ED5  $1ED5
+;s217A  $217A
+;s217A  $217A
+
+SelRoutLo
+        .BYTE $E3,$81,$14,$B0,$C8,$1A,$5B,$D5
         .BYTE $10,$81,$81,$81,$81,$D5,$7A,$7A
-f1503   .BYTE $17,$19,$1B,$1B,$1C,$1D,$1E,$1E
+SelRoutHi
+        .BYTE $17,$19,$1B,$1B,$1C,$1D,$1E,$1E
         .BYTE $20,$19,$19,$19,$19,$1E,$21,$21
 a1513   .BYTE $00
+
 b1514   DEC a15CD
         BEQ b1529
 b1519   RTS 
 
-;------------------------------------------------------------------
-;s151A
-;------------------------------------------------------------------
 ;------------------------------------------------------
 ; s151A
 ;------------------------------------------------------
@@ -710,7 +713,7 @@ b1529   LDA #$01
         STA RAM_DATPTR_LO
         LDA BgrndAnimationData2,Y
         ADC #$00
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDY a15CE
 j1548   LDA (RAM_DATPTR_LO),Y
         CMP #$23
@@ -773,14 +776,11 @@ b15B8   LDA a15CC
         BNE b15B7
         LDA #$01
         STA a15CC
-        STA a1F29
+        STA playerIsAlive
         LDA #$00
         STA a15CE
         RTS 
 
-;------------------------------------------------------------------
-;s1741
-;------------------------------------------------------------------
 a15CB   .BYTE $00
 a15CC   .BYTE $00
 a15CD   .BYTE $01
@@ -906,12 +906,13 @@ b17CF   DEC a17C1
         BNE b17E1
         LDA #$FF
         STA a17C1
-        LDA a1F29
+        LDA playerIsAlive
         BNE b17E1
         JSR s151A
 b17E1   RTS 
 
 a17E2   .BYTE $00
+
 ;------------------------------------------------------
 ; s17E3
 ;------------------------------------------------------
@@ -939,18 +940,18 @@ RAM_BMLUM   =*+$02
 ;------------------------------------------------------
 s1804   LDA f13A2,X
         PHA 
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
         PHA 
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         LDA f1442,X
         CLC 
-        ADC zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        ADC zp02 
+        STA zp02 
         LDA f1442,X
         CLC 
-        ADC zp03 ;ZPVEC1  Temp (renumber)
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        ADC zp03 
+        STA zp03 
         LDA #$01
         STA a36A2
         JSR s18AD
@@ -958,29 +959,29 @@ s1804   LDA f13A2,X
         PHA 
         SEC 
         SBC f1442,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         JSR s18AD
         PLA 
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         PLA 
         PHA 
         SEC 
         SBC f1442,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        LDA zp03 
         PHA 
         SEC 
         SBC f1442,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         JSR s18AD
         PLA 
         CLC 
         ADC f1442,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         PLA 
         SEC 
         SBC f1442,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JMP s18AD
 
 j185B   DEC f1442,X
@@ -988,34 +989,34 @@ j185B   DEC f1442,X
 j1860   LDA #$00
         STA a36A2
         LDA #$71
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
         CLC 
         ADC f1442,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         LDA #$6F
         STA charToPlot
         JSR s18AD
         LDA f13A2,X
         CLC 
         ADC f1442,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         DEC charToPlot
         JSR s18AD
         LDA f13C2,X
         SEC 
         SBC f1442,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         INC charToPlot
         JSR s18AD
         LDA f13A2,X
         SEC 
         SBC f1442,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         DEC charToPlot
         JMP s18AD
 
@@ -1036,7 +1037,7 @@ s18AD   LDA zp02
         JSR Screen_GetPointer
         AND #$80
         BNE b18CA
-        JSR s33E1
+        JSR DrawCharacter2
 b18CA   LDX a18DE
         RTS 
 
@@ -1056,26 +1057,27 @@ a18DE   .BYTE $00
 j18DF   LDA f1402,X
         TAY 
 ;------------------------------------------------------
-; s18E3
+; SelectStepInAnimation1
 ;------------------------------------------------------
-s18E3   TYA 
+SelectStepInAnimation1
+        TYA 
         STA f13E2,X
         LDA f190C,Y
-        STA a14DF
+        STA SelectedRoutineLo
         LDA f191C,Y
-        STA a14E0
+        STA SelectedRoutineHi
         LDA #$01
         STA a36A2
         TXA 
         PHA 
         LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        JSR s33E1
+        STA zp03
+        JSR DrawCharacter2
         PLA 
         TAX 
-        JMP (a14DF)
+        JMP (SelectedRoutineLo)
 
 f190C   .BYTE $00,$3C,$4C,$60,$9B,$0F,$27,$B2
         .BYTE $D4,$3C,$3C,$3C,$3C,$B2,$55,$44
@@ -1106,7 +1108,7 @@ f192C   .BYTE $00,$81,$73,$00,$61,$65,$85,$81
         STA f1462,X
         LDA #$03
         STA f1402,X
-        JSR s1AFF
+        JSR DrawDataToScreen
         RTS 
 
 f1971   BRK #$00
@@ -1129,13 +1131,13 @@ b1985   NOP
         TAY 
         LDA f1971,Y
         ORA #$0E
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA #$EC
         STA charToPlot
         LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         JMP DrawCharacterOnScreen
 
 ;------------------------------------------------------
@@ -1143,7 +1145,7 @@ b1985   NOP
 ;------------------------------------------------------
 s19AC   STY a19C1
         LDY #$1F
-b19B1   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+b19B1   LDA zp02 
 b19B3   CMP f13A2,Y
         BEQ b19C2
         DEY 
@@ -1153,7 +1155,7 @@ j19BE   LDA #$00
         RTS 
 
 a19C1   .BYTE $00
-b19C2   LDA zp03 ;ZPVEC1  Temp (renumber)
+b19C2   LDA zp03 
         CMP f13C2,Y
         BEQ b19D2
         DEY 
@@ -1175,7 +1177,7 @@ b19EA   =*+$01
         BEQ b19F5
         STY a19FF
         TAY 
-        JSR s18E3
+        JSR SelectStepInAnimation1
         LDY a19FF
 b19F5   LDX a19FE
         LDA f1A12,Y
@@ -1200,11 +1202,12 @@ a1A2A   .BYTE $FF
 a1A2B   .BYTE $00
 a1A2C   .BYTE $00
 ;------------------------------------------------------
-; s1A2D
+; PlaySounds2
 ;------------------------------------------------------
-s1A2D   LDY a1A2A
+PlaySounds2
+        LDY a1A2A
         BMI b1A11
-        LDA a1F29
+        LDA playerIsAlive
         BNE b1A11
         LDA f1A46,Y
         STA a1A2B
@@ -1221,14 +1224,14 @@ f1A4B   .BYTE $1A,$1A,$21,$22,$22
         LDA a1A22
         BEQ b1A69
         LDA a1A23
-        JSR s1A80
+        JSR PlaySounds3
         DEC a1A22
         RTS 
 
 b1A69   LDA a1A24
         BEQ b1A92
         LDA a1A25
-        JSR s1A80
+        JSR PlaySounds3
         DEC a1A24
         LDA $FF11    ;Bits 0-3 : Volume control
         AND #$3F
@@ -1236,9 +1239,9 @@ b1A69   LDA a1A24
         RTS 
 
 ;------------------------------------------------------
-; s1A80
+; PlaySounds3
 ;------------------------------------------------------
-s1A80   PHA 
+PlaySounds3   PHA 
         ROL 
         ROL 
         ROL 
@@ -1267,14 +1270,14 @@ b1A92   LDA $FF11    ;Bits 0-3 : Volume control
         STA $FF11    ;Bits 0-3 : Volume control
         INC a1A22
         LDA a1A22
-        JMP s1A80
+        JMP PlaySounds3
 
 b1ABA   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
         ORA #$2F
         STA $FF11    ;Bits 0-3 : Volume control
         LDA a1A23
-        JSR s1A80
+        JSR PlaySounds3
         LDA a1A23
         SEC 
         SBC #$10
@@ -1302,9 +1305,10 @@ j1AE5   LDA #$90
         RTS 
 
 ;------------------------------------------------------
-; s1AFF
+; DrawDataToScreen
 ;------------------------------------------------------
-s1AFF   LDA #<pF8F0
+DrawDataToScreen
+        LDA #<pF8F0
         STA a1A22
         LDA #>pF8F0
         STA a1A23
@@ -1321,12 +1325,12 @@ b1B13   RTS
         LDA #$01
         STA a36A2
         LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         TXA 
         PHA 
-        JSR s33E1
+        JSR DrawCharacter2
         PLA 
         TAX 
         LDA #$ED
@@ -1337,22 +1341,22 @@ b1B13   RTS
         TAY 
         LDA f1971,Y
         ORA f1422,X
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA f1482,X
         AND #$07
 j1B4E   TAY 
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         CLC 
         ADC f3872,Y
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        LDA zp03 
         CLC 
         ADC f387A,Y
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         BMI b1B6D
         CMP #$18
         BPL b1B6D
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         BMI b1B6D
         CMP #$28
         BMI b1B79
@@ -1382,13 +1386,13 @@ b1B8F   AND #$F0
         AND #$08
         BNE b1BA0
         LDA #$01
-        STA a1F29
+        STA playerIsAlive
 b1BA0   JSR DrawCharacterOnScreen
         PLA 
         TAX 
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         STA f13A2,X
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        LDA zp03 
         STA f13C2,X
 b1BAF   RTS 
 
@@ -1397,9 +1401,9 @@ b1BAF   RTS
         LDA f1442,X
         BNE b1BD3
         LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         LDA #$01
         STA a36A2
         TXA 
@@ -1445,7 +1449,7 @@ b1C06   LDA (RAM_DATPTR_LO),Y
         ADC #$04
 b1C11   CMP #$44
         BNE b1C18
-        LDA a3558
+        LDA ShipData1
 b1C18   STA a1BF6
         INY 
         LDA (RAM_DATPTR_LO),Y
@@ -1455,7 +1459,7 @@ b1C18   STA a1BF6
         ADC #$04
 b1C27   CMP #$44
         BNE b1C2E
-        LDA a355C
+        LDA ShipData2
 b1C2E   STA a1BF7
         INY 
         LDA (RAM_DATPTR_LO),Y
@@ -1470,14 +1474,14 @@ b1C3B   STA a1BF8
 ; s1C40
 ;------------------------------------------------------
 s1C40   LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         LDA #$01
         STA a36A2
         TXA 
         PHA 
-        JSR s33E1
+        JSR DrawCharacter2
         PLA 
         TAX 
         LDA #$00
@@ -1485,10 +1489,14 @@ s1C40   LDA f13A2,X
         RTS 
 
 a1C5C   .BYTE $00
+
+;------------------------------------------------------------------
+; j1C5D
+;------------------------------------------------------------------
 j1C5D   LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         TXA 
         PHA 
         JSR Screen_GetPointer
@@ -1510,7 +1518,7 @@ b1C77   AND #$F0
         CMP #$D0
         BEQ b1C90
         LDA #$01
-        STA a1F29
+        STA playerIsAlive
 b1C90   JSR DrawCharacterOnScreen
         PLA 
         TAX 
@@ -1564,11 +1572,11 @@ b1CC7   RTS
         LDA f1422,X
         STA charToPlot
         LDA #$5C
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         JMP j1C5D
 
 b1D09   LDY #$03
-        JMP s18E3
+        JMP SelectStepInAnimation1
 
 a1D0E   .BYTE $00
         LDA #$00
@@ -1586,7 +1594,7 @@ b1D19   RTS
         JSR s18D7
         AND #$70
         ORA #$02
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA #$00
         STA a1D0E
         JSR j1C5D
@@ -1605,7 +1613,7 @@ b1D19   RTS
         RTS 
 
 b1D59   LDA f13A2,X
-        CMP a3558
+        CMP ShipData1
         BNE b1D84
         LDA #$F4
         STA f1462,X
@@ -1614,7 +1622,7 @@ b1D59   LDA f13A2,X
         LDA #$01
         STA f1422,X
         LDA f13C2,X
-        CMP a355C
+        CMP ShipData2
         BMI b1D7E
         LDA #$00
         STA f1442,X
@@ -1625,7 +1633,7 @@ b1D7E   LDA #$04
 b1D83   RTS 
 
 b1D84   LDA f13C2,X
-        CMP a355C
+        CMP ShipData2
         BNE b1D83
         LDA #$F5
         STA f1462,X
@@ -1634,7 +1642,7 @@ b1D84   LDA f13C2,X
         LDA #$01
         STA f1422,X
         LDA f13A2,X
-        CMP a3558
+        CMP ShipData1
         BMI b1DA9
         LDA #$06
         STA f1442,X
@@ -1654,20 +1662,20 @@ b1DB0   CMP #$02
         TAY 
         LDA f1971,Y
         ORA #$0A
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDY f1442,X
         LDA f13A2,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f13C2,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-j1DD4   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 
+j1DD4   LDA zp02 
         CLC 
         ADC f3872,Y
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        LDA zp03 
         CLC 
         ADC f387A,Y
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         TXA 
         PHA 
         TYA 
@@ -1700,7 +1708,7 @@ b1E0A   LDA #$01
         LDA #$00
         STA f1422,X
         LDY #$01
-        JMP s18E3
+        JMP SelectStepInAnimation1
 
         LDA #$03
         STA f1402,X
@@ -1737,7 +1745,7 @@ b1E5A   RTS
         ASL 
         AND #$70
         ORA #$0C
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA #$EC
         STA charToPlot
         LDY f1422,X
@@ -1772,7 +1780,7 @@ a1EAC   BRK #$FC
         LDA #$04
         STA f1402,X
         LDA f13C2,X
-        CMP a355C
+        CMP ShipData2
         BMI b1ECA
         LDA #$F0
         STA f1422,X
@@ -1802,13 +1810,13 @@ b1ED4   RTS
         LDA #$00
         STA a1D0E
         LDA #$7F
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA f1422,X
         STA charToPlot
         JMP j1C5D
 
 b1F06   LDY #$03
-        JMP s18E3
+        JMP SelectStepInAnimation1
 
 ;------------------------------------------------------
 ; s1F0B
@@ -1826,17 +1834,16 @@ b1F1D   JSR s1F2A
         DEY 
         BPL b1F1D
         LDA #$02
-        STA a1F29
+        STA playerIsAlive
         RTS 
+
+playerIsAlive   .BYTE $00
 
 ;------------------------------------------------------
 ; s1F2A
 ;------------------------------------------------------
-s1F2A   =*+$01
-a1F29   BRK #$B9
-        CLI 
-        AND RAM_EAL,X ;EAL     
-        LDX #$13
+s1F2A   LDA ShipData1,Y
+        STA f13A2,X
         STA f13A3,X
         STA f13A4,X
         SEC 
@@ -1845,7 +1852,7 @@ a1F29   BRK #$B9
         CLC 
         ADC #$04
         STA f13A6,X
-        LDA a355C,Y
+        LDA ShipData2,Y
         STA f13C2,X
         STA f13C5,X
         STA f13C6,X
@@ -1871,18 +1878,21 @@ b1F5E   LDA #$03
         STA a14A2
         TXA 
         PHA 
-        LDX #$03
-b1F7A   LDA a355C,X
+
+        LDX #$03 ; Four ships.
+b1F7A   LDA ShipData2,X
         ASL 
         STA f1F97,X
         DEX 
         BPL b1F7A
-        LDX #$03
+
+        LDX #$03 ; Four ships.
 b1F86   LDY f1F97,X
         LDA colorSequence,Y
         STA f1F9B,X
         DEX 
         BPL b1F86
+
         PLA 
         TAX 
         PLA 
@@ -1918,6 +1928,7 @@ b1FAD   PHA
         TAX 
 b1FB9   TXA 
         PHA 
+
 b1FBB   INC SCREEN_RAM + $03C7,X
         LDA SCREEN_RAM + $03C7,X
         CMP #$3A
@@ -1926,6 +1937,7 @@ b1FBB   INC SCREEN_RAM + $03C7,X
         STA SCREEN_RAM + $03C7,X
         DEX 
         BPL b1FBB
+
 b1FCD   PLA 
         TAX 
         DEY 
@@ -1980,7 +1992,7 @@ j2032   LDA f1422,X
         ASL 
         AND #$70
         ORA f1442,X
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA #$EC
         STA a1D0E
         JSR j1C5D
@@ -2010,7 +2022,7 @@ b2060   STA f1482,X
         JMP j2032
 
 b2081   LDY #$02
-        JMP s18E3
+        JMP SelectStepInAnimation1
 
 a2086   .BYTE $00
 a2087   .BYTE $00
@@ -2022,9 +2034,10 @@ a2093   .BYTE $00
 a2094   .BYTE $FF
 a2095   .BYTE $FF
 ;------------------------------------------------------
-; s2096
+; DoSomeMoreAnimation
 ;------------------------------------------------------
-s2096   DEC a2090
+DoSomeMoreAnimation
+        DEC a2090
         BEQ b209C
         RTS 
 
@@ -2083,14 +2096,14 @@ b20FB   AND #$07
         CLC 
         ROR 
         LDX #$00
-b2115   CMP a355C,X
+b2115   CMP ShipData2,X
         BEQ b2120
         DEX 
         BPL b2115
         JMP j2134
 
 b2120   LDA #$01
-        STA a1F29
+        STA playerIsAlive
         LDX a2087
         LDA a2095
         STA colorSequence,X
@@ -2153,7 +2166,7 @@ b219C   LDA f1482,X
 b21A8   LDA f1442,X
 b21AB   STA charToPlot
         LDA f1462,X
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         JMP j1C5D
 
 b21B5   LDA f1482,X
@@ -2166,7 +2179,7 @@ b21B5   LDA f1482,X
         CMP #$18
         BNE b219C
         LDY #$07
-        JMP s18E3
+        JMP SelectStepInAnimation1
 
         LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
@@ -2178,7 +2191,7 @@ b21B5   LDA f1482,X
         STA a1A22
         CMP #$60
         BEQ b21E9
-        JMP s1A80
+        JMP PlaySounds3
 
 b21E9   LDA $FF11    ;Bits 0-3 : Volume control
         AND #$1F
@@ -2199,7 +2212,7 @@ b21E9   LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$20
         STA $FF11    ;Bits 0-3 : Volume control
         LDA #$D0
-        JSR s1A80
+        JSR PlaySounds3
         DEC a1A22
         BEQ b21E9
         RTS 
@@ -2215,7 +2228,7 @@ b21E9   LDA $FF11    ;Bits 0-3 : Volume control
         ORA #$20
         STA $FF11    ;Bits 0-3 : Volume control
         LDA #$02
-        JSR s1A80
+        JSR PlaySounds3
         DEC a1A22
         BEQ b21E9
         RTS 
@@ -2300,7 +2313,7 @@ b237B   DEX
         LDA #<TopScoreText
         STA RAM_DATPTR_LO
         LDA #>TopScoreText
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA #$05
         STA RAM_INPPTR_LO
         LDA #>SCREEN_RAM + $00A0
@@ -2336,9 +2349,9 @@ b23B6   DEY
         CLC 
         ADC #$28
         STA RAM_DATPTR_LO
-        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_DATPTR_HI 
         ADC #$00
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         CLC 
         ADC #$50
@@ -2364,6 +2377,8 @@ b23E4   LDA f2420,X
         JSR DrawSomethingToBottomOfScreen
         LDA #$30
         STA RAM_DATPTR_LO
+
+        ; Wait a little, unless the player presses fire.
         LDX #$20
 b23FC   LDY #$00
         LDA currentJoystick1Reading
@@ -2375,6 +2390,7 @@ b2405   DEY
         BNE b23FC
         DEC RAM_DATPTR_LO
         BNE b23FC
+
 b240F   LDX #$F8
         TXS 
         LDA #$00
@@ -2388,7 +2404,7 @@ HiScoreTitle
        .TEXT "VOIDRUNNER FIVE BEST GAMES AND SCORERS /"
 
 b2450   LDA #>SCREEN_RAM + $0258
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA #<SCREEN_RAM + $0258
         STA RAM_DATPTR_LO
         LDA #$71
@@ -2400,15 +2416,15 @@ b245E   LDA HighScorePrompt,Y
         CMP #$20 ; No need to print a space
         BEQ b2476
         STA (RAM_DATPTR_LO),Y
-        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_DATPTR_HI 
         PHA 
         SEC 
         SBC #$04
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         STA (RAM_DATPTR_LO),Y
         PLA 
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
 b2476   DEY 
         BPL b245E
 
@@ -2416,9 +2432,9 @@ b2476   DEY
         CLC 
         ADC #$28
         STA RAM_DATPTR_LO
-        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_DATPTR_HI 
         ADC #$00
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         SEC 
         SBC #$10
@@ -2430,7 +2446,7 @@ b2476   DEY
 
 HighScorePrompt   .TEXT "EGO TRIP TIME  /   /   ENTER YOUR HANDLE"
 j24BE   LDA #$0C
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA #$08
         STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         LDA #$A0
@@ -2449,16 +2465,16 @@ j24D1   DEY
         ADC #$50
         STA RAM_DATPTR_LO
         STA RAM_INPPTR_LO
-        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_DATPTR_HI 
         ADC #$00
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         SEC 
         SBC #$04
         STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
         JMP j24D1
 
 b24F0   LDY #$00
-b24F2   JSR s24FE
+b24F2   JSR CheckUserInputHiScoreMenu
         INY 
         INX 
         CPY #$1C
@@ -2466,9 +2482,10 @@ b24F2   JSR s24FE
         JMP b240F
 
 ;------------------------------------------------------
-; s24FE
+; CheckUserInputHiScoreMenu
 ;------------------------------------------------------
-s24FE   LDA (RAM_INPPTR_LO),Y
+CheckUserInputHiScoreMenu
+        LDA (RAM_INPPTR_LO),Y
         PHA 
         LDA #$77
         STA (RAM_INPPTR_LO),Y
@@ -2516,9 +2533,6 @@ b254D   LDA currentJoystick1Reading
         STA TopScoreText,X
         RTS 
 
-;------------------------------------------------------------------
-;s255D
-;------------------------------------------------------------------
 ;------------------------------------------------------
 ; s255D
 ;------------------------------------------------------
@@ -2544,9 +2558,10 @@ b2572   CMP #$40
 
 a2579   .BYTE $00
 ;------------------------------------------------------
-; s257A
+; PlayASound
 ;------------------------------------------------------
-s257A   LDA a234C
+PlayASound   
+        LDA a234C
         CMP #$FF
         BNE b2587
         LDA #$0F
@@ -2561,7 +2576,7 @@ b2587   LDA a234C
         ASL 
         ASL 
         STA a2ED6
-        JSR s2F2A
+        JSR PlaySoundImpl
         LDA a2579
         CLC 
         ADC #$04
@@ -2574,16 +2589,18 @@ b2587   LDA a234C
         RTS 
 
 ;------------------------------------------------------
-; s25B3
+; PrepareGameOverSequence
 ;------------------------------------------------------
-s25B3   LDA #<RestOfTopFiveText
+PrepareGameOverSequence
+        LDA #<RestOfTopFiveText
         STA RAM_DATPTR_LO
         LDA #>RestOfTopFiveText
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDA #<CurrentScore
         STA RAM_INPPTR_LO
         LDA #>CurrentScore
         STA RAM_INPPTR_HI ;INPPTR  Vector: INPUT routine
+
         LDX #$00
         LDA #$05
         STA a44
@@ -2600,16 +2617,16 @@ b25DA   LDA #$28
         CLC 
         ADC RAM_DATPTR_LO
         STA RAM_DATPTR_LO
-        LDA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        LDA RAM_DATPTR_HI 
         ADC #$00
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         TXA 
         CLC 
         ADC #$28
         TAX 
         DEC a44
         BNE b25C9
-        JMP j2638
+        JMP JmpGameOver
 
 b25F3   LDA a44
         CMP #$01
@@ -2623,7 +2640,8 @@ b2600   LDA (RAM_INPPTR_LO),Y
         INX 
         CPY #$0A
         BNE b2600
-        BEQ j2638
+        BEQ JmpGameOver
+
 b260D   LDY #$C7
 b260F   LDA f225B,Y
         STA TopScoreText,Y
@@ -2635,6 +2653,7 @@ b260F   LDA f225B,Y
         TYA 
         CMP a2645
         BNE b260F
+
         LDY #$00
 b2625   LDA (RAM_INPPTR_LO),Y
         STA RestOfTopFiveText,X
@@ -2642,15 +2661,20 @@ b2625   LDA (RAM_INPPTR_LO),Y
         INX 
         CPY #$0A
         BNE b2625
+
+        ; Reset LivesLeft
         LDA #$06
         SEC 
         SBC a44
         STA LivesLeft
-j2638   LDA #<p0101
+
+JmpGameOver
+        LDA #<p0101
         STA a2BF1
         LDA #>p0101
         STA a2BF2
-        JMP j3B62
+        JMP PlayGameOverSequence
+
 a2645   .BYTE $00
 
 ;------------------------------------------------------------------
@@ -2836,7 +2860,10 @@ b2AFE   STA f13A2,X
         STA a14A2
         RTS 
 
-Initialize
+;------------------------------------------------------------------
+; LaunchGame
+;------------------------------------------------------------------
+LaunchGame
         ; Set background to black.
         LDA #$00
         STA $FF15    ;Background color register
@@ -2913,17 +2940,19 @@ Init_WaitForFire
 
 b2B86   JSR UpdateBackgroundAnimation
         DEC a2BF1
-        BNE b2B9B
+        BNE Title_HandleFire
         DEC a2BF2
-        BNE b2B9B
+        BNE Title_HandleFire
         DEC a2BF3
-        BNE b2B9B
+        BNE Title_HandleFire
+        ; After a while switch to the high score screen.
         JMP DisplayHiScoreScreen
 
         ; Keep looping until the user presses fire to start a game.
         ; currentJoystick1Reading gets updated by RoutineToPerformAtInterrupt
         ; at every raster/timer interrupt.
-b2B9B   LDA currentJoystick1Reading
+Title_HandleFire
+        LDA currentJoystick1Reading
         AND #$40 ; Fire
         BNE b2B86
 
@@ -2931,17 +2960,12 @@ b2B9B   LDA currentJoystick1Reading
         JSR InitializeScoresAndLives
         JMP LoadEnterLevelScreen
 
-;------------------------------------------------------------------
-; s2BA8
-;------------------------------------------------------------------
 ;------------------------------------------------------
 ; s2BA8
 ;------------------------------------------------------
 s2BA8   LDA #>COLOR_RAM + $000F
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
-;------------------------------------------------------------------
-; s2BAC
-;------------------------------------------------------------------
+        STA colourToPlot 
+
 ;------------------------------------------------------
 ; s2BAC
 ;------------------------------------------------------
@@ -2973,6 +2997,9 @@ b2BBC   JSR DrawCharacterOnScreen
         STA zp03
         RTS 
 
+;------------------------------------------------------------------
+; ClearScreen
+;------------------------------------------------------------------
 ClearScreen
         LDA #$20 ; Space
 FillScreen ; Fill Screen with whatever is in A register
@@ -3047,7 +3074,7 @@ ResetInterruptCount
         STA $FF15    ;Background color register
 
         ; Depending on the value in a3196 this will branch execution
-        ; to s319B($319B) or s31A1($31A1)
+        ; to JustPlayASound1($319B) or CheckInputAndPlaySound($31A1)
         LDA a3196 ; Can be $00, $01 or $02
         BEQ b2C4E
         LDX a3196 ; Can be $01 or $02
@@ -3055,12 +3082,12 @@ ResetInterruptCount
         STA a31CD
         LDA f3198,X
         STA a31CE
-        JMP (a31CD) ; can be s319B or s31A1
+        JMP (a31CD) ; can be JustPlayASound1 or CheckInputAndPlaySound
 
 b2C4E   JSR AdvanceBackgroundAnimation
-        JSR s2DE4
+        JSR UpdateCurrentColorAndColorSequence
         JSR s2E43
-        JSR s2ED9
+        JSR PlaySomeSounds
         JSR CheckJoystick1
         LDA #$00
         STA $FF15    ;Background color register
@@ -3112,10 +3139,10 @@ b2D03   STA colorSequence,X
 ;------------------------------------------------------------------
 WriteTitleScreenText   
         ; Turn on multi-color mode on the graphics chip ($FF07)
-        LDA aFF07
+        LDA GRAPHICS_CHIP
         AND #$EF
         ORA #$10
-        STA aFF07
+        STA GRAPHICS_CHIP
 
         LDX #$10
 b2D16   LDA TitleScreenText,X
@@ -3138,7 +3165,7 @@ b2D16   LDA TitleScreenText,X
         DEX 
         BPL b2D16
         LDA #$01
-        STA a2DE2
+        STA CurrentColor1
 
         LDA #$2E
         STA $FF17    ;Color register #2
@@ -3181,27 +3208,31 @@ TitleScreenText
 TitleTop .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
 TitleBottom   .TEXT "LEVEL /YAK/    LAST SCORE WAS "
 LastScore   .TEXT "0000000000"
-a2DE2   .BYTE $52
-a2DE3   .BYTE $04
+
 ;------------------------------------------------------
-; s2DE4
+; UpdateCurrentColorAndColorSequence
 ;------------------------------------------------------
-s2DE4   DEC a2DE3
+CurrentColor1   .BYTE $52
+CurClr1Counter   .BYTE $04
+
+UpdateCurrentColorAndColorSequence
+        DEC CurClr1Counter
         BEQ b2DEA
         RTS 
 
 b2DEA   LDA #$06
-        STA a2DE3
-        LDA a2DE2
+        STA CurClr1Counter
+        LDA CurrentColor1
         CLC 
         ADC #$10
         AND #$60
         ORA #$12
-        STA a2DE2
+        STA CurrentColor1
         STA $FF16    ;Color register #1
         JMP j2E2B
 
 f2E02   .BYTE $00,$10,$20,$30,$40,$50,$60,$70
+
 ;------------------------------------------------------------------
 ; InitializeColorSequenceData
 ;------------------------------------------------------------------
@@ -3225,10 +3256,10 @@ b2E21   LDA f2EB3,X
 
 j2E2B   LDX #$07
 b2E2D   LDA colorSequence,X
-        JSR s2E60
+        JSR ManipulateClrSeqValue
         STA colorSequence,X
         LDA f2C8D,X
-        JSR s2E60
+        JSR ManipulateClrSeqValue
         STA f2C8D,X
         DEX 
         BPL b2E2D
@@ -3253,9 +3284,10 @@ b2E4B   LDA f2C6D,X
         RTS 
 
 ;------------------------------------------------------
-; s2E60
+; ManipulateClrSeqValue
 ;------------------------------------------------------
-s2E60   CLC 
+ManipulateClrSeqValue
+        CLC 
         ADC #$10
         PHA 
         AND #$80
@@ -3275,35 +3307,35 @@ b2E6A   PLA
 ;------------------------------------------------------------------
 WriteStuffToScreen
         LDA #$00
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA #$FF
         STA a12D7
         LDA #$04
-        STA zp03 ;ZPVEC1  Temp (renumber)
-b2E80   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 
+b2E80   LDA zp02 
         PHA 
         JSR s2BA8
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         CLC 
         ADC #$04
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JSR s2BA8
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         CLC 
         ADC #$1C
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JSR s2BA8
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         CLC 
         ADC #$04
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JSR s2BA8
         PLA 
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        LDA zp03 
         CLC 
         ADC #$04
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         CMP #$14
         BNE b2E80
         RTS 
@@ -3318,24 +3350,25 @@ a2ED6   .BYTE $20
 a2ED7   .BYTE $20
 a2ED8   .BYTE $DA
 ;------------------------------------------------------
-; s2ED9
+; PlaySomeSounds
 ;------------------------------------------------------
-s2ED9   LDA a2ED3
+PlaySomeSounds
+        LDA a2ED3
         BEQ b2F17
         DEC a2ED3
         BNE b2F15
-        JSR s1170
+        JSR GetRandomValue
         STA a2ED6
         STA a2ED7
         LDA #$08
         STA a2ED5
         LDA #$0F
         STA a2F16
-        JSR s1170
+        JSR GetRandomValue
         AND #$7F
         STA a2ED8
         INC a2ED8
-        JSR s1170
+        JSR GetRandomValue
         AND #$01
         BNE b2F10
         LDA a2ED8
@@ -3351,13 +3384,13 @@ b2F17   LDA $FF11    ;Bits 0-3 : Volume control
         ORA a2F16
         ORA #$30
         STA $FF11    ;Bits 0-3 : Volume control
-        JSR s2F2A
+        JSR PlaySoundImpl
         JMP j2F53
 
 ;------------------------------------------------------
-; s2F2A
+; PlaySoundImpl
 ;------------------------------------------------------
-s2F2A   LDA a2ED6
+PlaySoundImpl   LDA a2ED6
         PHA 
         CLC 
         ROL 
@@ -3396,7 +3429,7 @@ j2F53   LDA a2ED6
         LDA $FF11    ;Bits 0-3 : Volume control
         AND #$C0
         STA $FF11    ;Bits 0-3 : Volume control
-        JSR s1170
+        JSR GetRandomValue
         STA a2ED3
 b2F80   RTS 
 
@@ -3538,7 +3571,7 @@ b3069   LDA f2E02,X
 b308C   LDA a3097
         BNE b308C
         JSR ClearScreen
-        JMP EnterLevel
+        JMP MainGameLoop
 
 a3097   .BYTE $00
 a3098   .BYTE $00
@@ -3619,9 +3652,9 @@ a3118   .BYTE $00
 a3119   .BYTE $01
 a311A   .BYTE $01
 ;------------------------------------------------------
-; s311B
+; PlayASound2
 ;------------------------------------------------------
-s311B   LDA a3097
+PlayASound2   LDA a3097
         BNE b3121
         RTS 
 
@@ -3652,7 +3685,7 @@ b3128   LDA $FF11    ;Bits 0-3 : Volume control
         ASL 
         ASL 
         STA a2ED6
-        JMP s2F2A
+        JMP PlaySoundImpl
 
 b3162   LDA a3116
         CLC 
@@ -3681,16 +3714,16 @@ a3196   .BYTE $00,$9B
 f3198   .BYTE $A1,$31,$31
 
 ;------------------------------------------------------
-; s319B
+; JustPlayASound1
 ;------------------------------------------------------
-s319B
-        JSR s311B
+JustPlayASound1
+        JSR PlayASound2
         JMP FinishProcessing_RI
 
 ;------------------------------------------------------
-; s31A1
+; CheckInputAndPlaySound
 ;------------------------------------------------------
-s31A1
+CheckInputAndPlaySound
         LDA #$00
         STA $FF15    ;Background color register
         JSR CheckJoystick1
@@ -3699,14 +3732,14 @@ s31A1
         STA $FF15    ;Background color register
         LDA a234C
         BMI b31BC
-        JSR s257A
+        JSR PlayASound
         JMP j31CA
 
-b31BC   JSR s36D7
+b31BC   JSR ColorPulseLevelAndScoreText
         LDA a33CF
         BNE j31CA
-        JSR s3988
-        JSR s1A2D
+        JSR PlayBackgroundSounds
+        JSR PlaySounds2
 j31CA   JMP FinishProcessing_RI
 
 a31CD   .BYTE $00
@@ -3785,7 +3818,7 @@ b323D   LDA $FF0E    ;Voice #1 frequency, bits 0-7
         STA a2ED6
         LDA #$00
         STA a3097
-        JSR s2F2A
+        JSR PlaySoundImpl
         LDA $FF0F    ;Voice #2 frequency, bits 0-7
         ADC #$05
         STA $FF0F    ;Voice #2 frequency, bits 0-7
@@ -3817,9 +3850,9 @@ b32B1   DEX
         RTS 
 
 ;------------------------------------------------------------------
-; EnterLevel
+; MainGameLoop
 ;------------------------------------------------------------------
-EnterLevel
+MainGameLoop
         LDA a17E2
         AND #$07
         TAY 
@@ -3859,51 +3892,62 @@ b32F8   DEX
 
         STX a12D7
         INC a2CFE
-j3308   LDA #$00
+RestartLevel
+        LDA #$00
         STA a33CF
-        JSR s3564
+        JSR PlayNewShipAnimation
 
        ; Main loop?
-b3310   JSR s373D
+b3310   JSR HandleInputAndMoveShips
         JSR HandleFirePressed
         JSR UpdateBackgroundAnimationData
-        JSR s2096
-        LDA a1F29
+        JSR DoSomeMoreAnimation
+        LDA playerIsAlive
         BEQ b3310
 
+        ; Update last score with current score
         LDX #$09
 b3323   LDA SCREEN_RAM + $03C7,X
         STA CurrentScore,X
         STA LastScore,X
         DEX 
         BNE b3323
+
         JSR s1F0B
-        JSR s39DE
+        JSR PlaySound4
 b3335   JSR UpdateBackgroundAnimationData
         JSR s3A2A
         LDA a3987
         BNE b3335
+
         JSR RunAnAnimationOnScreen
         LDA #$00
-        STA a1F29
+        STA playerIsAlive
         JSR Initializef13A2
+
         LDX #$03
-b334D   LDA f1F9B,X
+b334D   LDA f1F9B,X ; 4 ships.
         LDY f1F97,X
         STA colorSequence,Y
         DEX 
         BPL b334D
+
         LDA a15CC
         BNE b3374
+
+        ; Player got killed
         DEC LivesLeftText
         LDA LivesLeftText
-        CMP #$2F
+        CMP #$2F ; $30 is zero (in PETSCII) so $2F means the last life
+                 ; has been lost
         BNE b336E
-        JSR s25B3
-        JMP j3B62
 
-b336E   STA SCREEN_RAM + $03E3
-        JMP j3308
+        ; Game Over!
+        JSR PrepareGameOverSequence
+        JMP PlayGameOverSequence
+
+b336E   STA SCREEN_RAM + $03E3 ; Update lives left displayed on screen
+        JMP RestartLevel
 
 b3374   LDA #$00
         STA a15CC
@@ -3913,6 +3957,7 @@ b3374   LDA #$00
         BNE b3388
         LDA #$00
         STA a17E2
+
 b3388   INC LivesLeftText
         LDA LivesLeftText
         CMP #$3A
@@ -3967,9 +4012,9 @@ b33D5   CMP #$28
         CMP #$18
         BPL b33D4
 ;------------------------------------------------------
-; s33E1
+; DrawCharacter2
 ;------------------------------------------------------
-s33E1   LDA zp03
+DrawCharacter2   LDA zp03
         CMP #$18
         BNE b33E8
         RTS 
@@ -4028,21 +4073,21 @@ b3476   LDA #$00
         STA a31CF
         TAX 
 b347C   LDA #$71
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA f3439,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        STX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp03 
+        STX zp02 
 j3487   JSR ModifyAndDrawCharacterOnScreen
-        LDX zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA colourToPlot ;ZPVEC2  Temp (renumber)
+        LDX zp02 
+        LDA colourToPlot 
         AND #$F0
         SEC 
         SBC #$10
         CMP #$F0
         BEQ b34A0
         ORA #$01
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
-        DEC zp03 ;ZPVEC1  Temp (renumber)
+        STA colourToPlot 
+        DEC zp03 
         JMP j3487
 
 b34A0   INC f3439,X
@@ -4078,23 +4123,23 @@ f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
 ;RunAnAnimationOnScreen
 ;------------------------------------------------------------------
 RunAnAnimationOnScreen   LDA #$00
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        STA zp03 
         LDA #$09
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
 b3525   JSR s2BAC
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         CLC 
         ADC #$04
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         CMP #$28
         BNE b3525
         LDA #$00
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp02 
+        LDA zp03 
         CLC 
         ADC #$04
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         CMP #$18
         BNE b3525
         LDA #$F0
@@ -4119,19 +4164,18 @@ WasteAFewCycles
         NOP 
         RTS 
 
-a3558   .BYTE $13,$14,$15,$16
-a355C   .BYTE $0C,$0C,$0C,$0C
-f3560   .BYTE $07,$00,$00,$01
+ShipData1   .BYTE $13,$14,$15,$16
+ShipData2   .BYTE $0C,$0C,$0C,$0C
+ShipData3   .BYTE $07,$00,$00,$01
 
-;------------------------------------------------------------------
-; s3564
-;------------------------------------------------------------------
 ;------------------------------------------------------
-; s3564
+; PlayNewShipAnimation
 ;------------------------------------------------------
-s3564   LDA #$20
+PlayNewShipAnimation
+        LDA #$20
         STA a31CF
-b3569   LDX #$03
+
+b3569   LDX #$03 ; Four ships.
         LDA a31CF
         CLC 
         ROR 
@@ -4147,41 +4191,44 @@ b3569   LDX #$03
         STA $FF0E    ;Voice #1 frequency, bits 0-7
         STA $FF0F    ;Voice #2 frequency, bits 0-7
         DEC $FF0F    ;Voice #2 frequency, bits 0-7
-b358F   LDA f3560,X
+b358F   LDA ShipData3,X
         BMI b35A8
-        LDA a3558,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA ShipData1,X
+        STA zp02 
         LDA #$00
         STA charToPlot
         STA a36A2
-        LDA a355C,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        JSR s361F
+        LDA ShipData2,X
+        STA zp03 
+        JSR DrawShipMaterialization
 b35A8   DEX 
         BPL b358F
+
         LDA #$05
         DEC a31CF
         BPL b3569
+
         INC a31CF
         INC a36A2
-        LDX #$03
-b35BA   LDA f3560
+        LDX #$03 ; Four ships.
+b35BA   LDA ShipData3
         BMI b35CC
-        LDA a3558,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA a355C,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        JSR s361F
+        LDA ShipData1,X
+        STA zp02 
+        LDA ShipData2,X
+        STA zp03 
+        JSR DrawShipMaterialization
 b35CC   DEX 
         BPL b35BA
+
         LDA #$00
         STA a36A2
-        JSR s36A5
+        JSR DrawInitialShips
         LDA #$3F
         STA $FF11    ;Bits 0-3 : Volume control
 j35DC   LDA #$E0
         STA a2ED6
-b35E1   JSR s2F2A
+b35E1   JSR PlaySoundImpl
         LDX #$00
 b35E6   DEX 
         BNE b35E6
@@ -4215,13 +4262,13 @@ b3613   DEY
         RTS 
 
 ;------------------------------------------------------
-; s361F
+; DrawShipMaterialization
 ;------------------------------------------------------
-s361F   LDY #$07
+DrawShipMaterialization   LDY #$07
         STX tmpAorX
-        LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA zp02 
         STA a36A3
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        LDA zp03 
         STA a36A4
 b362E   TYA 
         STA a30F7
@@ -4234,15 +4281,15 @@ b3639   EOR #$07
         ASL 
         ASL 
         ORA #$06
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA a36A4
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         TYA 
         CLC 
         ADC a31CF
         CLC 
         ADC a36A3
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JSR ModifyAndDrawCharacterOnScreen
         LDY a30F7
         LDA a36A3
@@ -4250,23 +4297,23 @@ b3639   EOR #$07
         SBC a31CF
         SEC 
         SBC a30F7
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         JSR ModifyAndDrawCharacterOnScreen
         LDA a36A3
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA a30F7
         CLC 
         ADC a36A4
         CLC 
         ADC a31CF
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         JSR ModifyAndDrawCharacterOnScreen
         LDA a36A4
         SEC 
         SBC a30F7
         SEC 
         SBC a31CF
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         JSR ModifyAndDrawCharacterOnScreen
         LDY a30F7
         DEY 
@@ -4282,26 +4329,28 @@ b369E   LDX tmpAorX
 a36A2   .BYTE $00
 a36A3   .BYTE $00
 a36A4   .BYTE $00
+
 ;------------------------------------------------------
-; s36A5
+; DrawInitialShips
 ;------------------------------------------------------
-s36A5   LDX #$03
-b36A7   LDA f3560,X
+DrawInitialShips
+        LDX #$03 ; Four ships!
+b36A7   LDA ShipData3,X
         BMI b36D3
-        LDA a3558,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        LDA ShipData1,X
+        STA zp02 
         LDA #$42
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         CPX #$00
         BNE b36BD
         LDA #$75
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
 b36BD   LDA #$E0
         CLC 
-        ADC f3560,X
+        ADC ShipData3,X
         STA charToPlot
-        LDA a355C,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        LDA ShipData2,X
+        STA zp03 
         STX tmpAorX
         JSR ModifyAndDrawCharacterOnScreen
         LDX tmpAorX
@@ -4310,9 +4359,10 @@ b36D3   DEX
         RTS 
 
 ;------------------------------------------------------
-; s36D7
+; ColorPulseLevelAndScoreText
 ;------------------------------------------------------
-s36D7   DEC a36DD
+ColorPulseLevelAndScoreText
+        DEC a36DD
         BEQ b36DE
 b36DC   RTS 
 
@@ -4332,6 +4382,10 @@ b36E5   LDA COLOR_RAM + $03C0,X
         BPL b36E5
         LDA a234C
         BMI b370E
+
+        ; This rotates the ship icon next to the 'lives left'. $60
+        ; is the ship icon and values up to $68 animate it rotating
+        ; 360 degress.
         INC SCREEN_RAM + $03E1
         LDA SCREEN_RAM + $03E1
         CMP #$68
@@ -4349,10 +4403,12 @@ f3733   .BYTE $00,$00,$00,$00
 f3737   .BYTE $00,$00,$00,$00
 a373B   .BYTE $30
 a373C   .BYTE $01
+
 ;------------------------------------------------------
-; s373D
+; HandleInputAndMoveShips
 ;------------------------------------------------------
-s373D   DEC a373B
+HandleInputAndMoveShips
+        DEC a373B
         BNE b370E
         LDA #$60
         STA a373B
@@ -4360,16 +4416,18 @@ s373D   DEC a373B
         BNE b370E
         LDA #$01
         STA a373C
+
         LDA currentJoystick1Reading
         EOR #$FF
         AND #$0F
         TAY 
         PHA 
-        LDX #$03
+
+        LDX #$03 ; Four ships to move.
 b375C   PLA 
         PHA 
         TAY 
-        LDA f3560,X
+        LDA ShipData3,X
         BMI b37C2
         LDA f372F,X
         BEQ b37AE
@@ -4408,22 +4466,23 @@ b3791   LDA f372F,X
         AND #$03
         ORA a30F7
         TAY 
-b37AE   LDA a3558,X
+b37AE   LDA ShipData1,X
         CLC 
         ADC f370F,Y
         STA f3733,X
-        LDA a355C,X
+        LDA ShipData2,X
         CLC 
         ADC f371F,Y
         STA f3737,X
 b37C2   DEX 
         BPL b375C
+
         PLA 
         LDA f3733
-        CMP a3558
+        CMP ShipData1
         BNE b37DA
         LDA f3737
-        CMP a355C
+        CMP ShipData2
         BNE b37DA
         JMP j3803
 
@@ -4437,46 +4496,52 @@ b37DA   LDA f3733
         BMI b37D9
         CMP #$18
         BPL b37D9
-        LDX #$03
-b37EE   LDA a3558,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        LDA a355C,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+
+        LDX #$03 ; Four ships to draw.
+b37EE   LDA ShipData1,X
+        STA zp02 
+        LDA ShipData2,X
+        STA zp03 
         LDA #$01
         STA a36A2
-        JSR s3832
+        JSR PrepareAndDrawCharacter2
         DEX 
         BPL b37EE
+
 j3803   LDA #$00
         STA a36A2
-        LDX #$03
+
+        LDX #$03 ; Four ships to move.
 b380A   LDA f3733,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
-        STA a3558,X
+        STA zp02 
+        STA ShipData1,X
         LDA f3737,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
-        STA a355C,X
+        STA zp03 
+        STA ShipData2,X
         LDA f382E,X
-        STA colourToPlot ;ZPVEC2  Temp (renumber)
+        STA colourToPlot 
         LDA #$E0
         CLC 
-        ADC f3560,X
+        ADC ShipData3,X
         STA charToPlot
-        JSR s3832
+        JSR PrepareAndDrawCharacter2
         DEX 
         BPL b380A
+
 b382D   RTS 
 
 f382E   .BYTE $75,$42,$42,$42
+
 ;------------------------------------------------------
-; s3832
+; PrepareAndDrawCharacter2
 ;------------------------------------------------------
-s3832   LDA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+PrepareAndDrawCharacter2
+        LDA zp02 
         STX tmpAorX
         BMI b382D
         CMP #$28
         BPL b382D
-        LDA zp03 ;ZPVEC1  Temp (renumber)
+        LDA zp03 
         BMI b382D
         CMP #$18
         BPL b382D
@@ -4497,8 +4562,8 @@ b385A   CMP #$E0
         CMP #$0C
         BNE b386B
 b3866   LDA #$01
-        STA a1F29
-b386B   JSR s33E1
+        STA playerIsAlive
+b386B   JSR DrawCharacter2
         LDX tmpAorX
         RTS 
 
@@ -4509,17 +4574,21 @@ f388A   .BYTE $FF,$FF,$FF,$FF
 f388E   .BYTE $FF,$FF,$FF,$FF
 f3892   .BYTE $00,$00,$00,$00
 a3896   .BYTE $C0
+;------------------------------------------------------------------
+; HandleFirePressed
+;------------------------------------------------------------------
 HandleFirePressed
         DEC a3896
         BEQ b389D
         RTS 
 
-b389D   LDX #$03
+b389D   LDX #$03 ; Four ships to fire.
 b389F   LDA f388A,X
         BPL b38B0
         JSR PrepareFireDataIfFirePressed
 j38A7   DEX 
         BPL b389F
+
         LDA #$20
         STA a3896
 b38AF   RTS 
@@ -4539,9 +4608,9 @@ PrepareFireDataIfFirePressed
         AND #$40 ; Fire
         BNE b38AF
         ; Fire was pressed. 
-        LDA a3558,X
+        LDA ShipData1,X
         STA f388A,X
-        LDA a355C,X
+        LDA ShipData2,X
         STA f388E,X
         LDA #$20
         STA f3892,X
@@ -4549,7 +4618,7 @@ PrepareFireDataIfFirePressed
         STA a3986
         LDA #>p03A0
         STA a3987
-        LDA f3560,X
+        LDA ShipData3,X
         STA f39DA,X
         RTS 
 
@@ -4558,9 +4627,9 @@ PrepareFireDataIfFirePressed
 ;------------------------------------------------------------------
 DrawFireAnimation
         LDA f388A,X
-        STA zp02 ;SRCHTK  Token 'search' looks for (run-time stack)
+        STA zp02 
         LDA f388E,X
-        STA zp03 ;ZPVEC1  Temp (renumber)
+        STA zp03 
         LDA #$01
         STA a36A2
         JSR DrawStepInFireAnimation
@@ -4616,7 +4685,7 @@ b3927   ASL
 
 b3960   RTS 
 
-b3961   JSR s33E1
+b3961   JSR DrawCharacter2
         LDX tmpAorX
 b3967   RTS 
 
@@ -4639,10 +4708,11 @@ b3985   RTS
 a3986   .BYTE $00
 a3987   .BYTE $00
 ;------------------------------------------------------
-; s3988
+; PlayBackgroundSounds
 ;------------------------------------------------------
-s3988   LDA a1F29
-        BNE b3985
+PlayBackgroundSounds
+        LDA playerIsAlive
+        BNE b3985 ; Stop playing if player is dead.
         LDA a3987
         BNE b399B
         LDA $FF11    ;Bits 0-3 : Volume control
@@ -4682,16 +4752,17 @@ b399B   LDA a3986
 a39D9   .BYTE $00
 f39DA   .BYTE $00,$00,$00,$00
 ;------------------------------------------------------
-; s39DE
+; PlaySound4
 ;------------------------------------------------------
-s39DE   LDA #$C0
+PlaySound4
+        LDA #$C0
         STA a33CF
         STA a2ED6
         LDA #$3F
         STA $FF11    ;Bits 0-3 : Volume control
         LDA #$10
         STA a3987
-b39F0   JSR s2F2A
+b39F0   JSR PlaySoundImpl
         LDX #$C0
 b39F5   LDY #$0A
 b39F7   DEY 
@@ -4732,12 +4803,14 @@ s3A2A   DEC a3A6F
         ASL 
         AND #$70
         ORA #$06
-        LDX #$03
+
+        LDX #$03 ; Four ships.
 b3A40   LDY f1F97,X
         STA colorSequence,Y
         DEX 
         BPL b3A40
-        JSR s2F2A
+
+        JSR PlaySoundImpl
         LDA a2ED6
         CLC 
         ADC #$02
@@ -4755,6 +4828,7 @@ b3A66   LDA a3987
         RTS 
 
 a3A6F   .BYTE $00
+
 ;------------------------------------------------------
 ; s3A70
 ;------------------------------------------------------
@@ -4763,24 +4837,26 @@ s3A70   LDY a17E2
         LDA BgrndAnimationData1,Y
         STA RAM_DATPTR_LO
         LDA BgrndAnimationData2,Y
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDY #$00
+
 b3A81   LDA (RAM_DATPTR_LO),Y
         STA txtLevelName,Y
         STA CurrentLevelText,Y
         INY 
         DEX 
         BPL b3A81
+
         LDX #$00
 b3A8F   LDA (RAM_DATPTR_LO),Y
-        STA a3558,X
+        STA ShipData1,X
         TYA 
         PHA 
         CLC 
         ADC #$04
         TAY 
         LDA (RAM_DATPTR_LO),Y
-        STA a355C,X
+        STA ShipData2,X
         TYA 
         CLC 
         ADC #$04
@@ -4792,7 +4868,7 @@ b3A8F   LDA (RAM_DATPTR_LO),Y
         ADC #$04
         TAY 
         LDA (RAM_DATPTR_LO),Y
-        STA f3560,X
+        STA ShipData3,X
         PLA 
         TAY 
         INY 
@@ -4814,7 +4890,7 @@ b3AC2   LDY #$03
         PHA 
         LDA f13A2,X
         BMI b3ACE
-        JSR s18E3
+        JSR SelectStepInAnimation1
 b3ACE   PLA 
         TAX 
         DEX 
@@ -4826,6 +4902,7 @@ b3ACE   PLA
 b3AD7   RTS 
 
 a3AD8   .BYTE $00
+
 ;------------------------------------------------------------------
 ; UpdateBackgroundAnimation
 ; If the player presses 'right' on the joystick, update the background
@@ -4853,7 +4930,7 @@ b3AED   LDA currentJoystick1Reading
         LDA BgrndAnimationData1,X
         STA RAM_DATPTR_LO
         LDA BgrndAnimationData2,X
-        STA RAM_DATPTR_HI ;DATPTR  Pointer: Current DATA item address
+        STA RAM_DATPTR_HI 
         LDY #$04
 b3B13   LDA (RAM_DATPTR_LO),Y
         STA SCREEN_RAM + $0376,Y
@@ -4890,7 +4967,12 @@ b3B2C   LDA f3B4A,X
 f3B4A   .BYTE $00,$08,$10,$18,$00,$08,$10,$18
 f3B52   .BYTE $00,$00,$00,$00,$08,$08,$08,$08
 f3B5A   .TEXT "GAMEOVER"
-j3B62   LDA #$00
+
+;------------------------------------------------------------------
+; PlayGameOverSequence
+;------------------------------------------------------------------
+PlayGameOverSequence
+        LDA #$00
         STA a30F8
         STA a3B28
         STA a3B29
@@ -4902,6 +4984,7 @@ b3B76   STA a30F9
         LDA #$FF
         STA a12D7
         JSR RunAnAnimationOnScreen
+        
 b3B81   JSR RunGameOverAnimation
         INC a3B28
         INC a3B29
@@ -4918,7 +5001,7 @@ j3B9E   LDA #$20
         STA a3BDB
 b3BA3   JSR s18D7
         STA a2ED6
-        JSR s2F2A
+        JSR PlaySoundImpl
         LDX #$10
 b3BAE   LDY #$C0
 b3BB0   DEY 
