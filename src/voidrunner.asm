@@ -103,7 +103,7 @@ a1027   .BYTE $24
 ;------------------------------------------------------------------
 AdvanceBackgroundAnimation
         LDY #$00
-        LDA a17E2
+        LDA currentLevel
         AND #$07
         TAY 
         ; Use the value of Y (0-7) to pick the subroutine to run.
@@ -704,7 +704,7 @@ s151A   LDA a15CF
         STA a15CF
 b1529   LDA #$01
         STA a15CD
-        LDY a17E2
+        LDY currentLevel
         LDA #$01
         STA a1513
         LDA LevelDataMapLo,Y
@@ -862,7 +862,7 @@ Level3Data
         .BYTE $01,$02,$27,$FF,$06,$FE,$00,$24
         .BYTE $FE,$00,$FD
 Level4Data
-        .BYTE $53,$48,$45, $45,$50
+        .BYTE $53,$48,$45,$45,$50
         .BYTE $14,$13,$15,$16,$0B,$0B,$0B,$0B
         .BYTE $00,$00,$0C,$0C,$00,$00,$00,$00
         .BYTE $23,$04,$86,$02,$02,$FF,$00,$FF
@@ -943,9 +943,9 @@ a17C0   .BYTE $09
 a17C1   .BYTE $01
 
 ;------------------------------------------------------------------
-; UpdateBackgroundAnimationData
+; CheckSelectLevelData
 ;------------------------------------------------------------------
-UpdateBackgroundAnimationData
+CheckSelectLevelData
         DEC a17BF
         BNE b17CF
         JSR RunSequenceFromf13A2
@@ -960,7 +960,7 @@ b17CF   DEC a17C1
         JSR s151A
 b17E1   RTS 
 
-a17E2   .BYTE $00
+currentLevel   .BYTE $00
 
 ;------------------------------------------------------
 ; s17E3
@@ -2983,10 +2983,10 @@ LaunchGame
         STA $FF15    ;Background color register
         STA $FF19    ;Color register #4
 
-        ; Initialize some variables
+        ; Initialize some variables to zero
         STA a3196
         STA a15CE
-        STA a17E2
+        STA currentLevel
         STA a2CFE
         STA a36A2
         JSR Initializef13A2
@@ -3052,7 +3052,8 @@ Init_WaitForFire
         JSR WriteStuffToScreen
         JSR WriteTitleScreenText
 
-b2B86   JSR UpdateBackgroundAnimation
+TitleScreenLoop
+        JSR CheckSelectLevel
         DEC a2BF1
         BNE Title_HandleFire
         DEC a2BF2
@@ -3068,7 +3069,7 @@ b2B86   JSR UpdateBackgroundAnimation
 Title_HandleFire
         LDA currentJoystick1Reading
         AND #$40 ; Fire
-        BNE b2B86
+        BNE TitleScreenLoop
 
         ; THe player has pressed fire, start the game.
         JSR InitializeScoresAndLives
@@ -3092,11 +3093,13 @@ s2BAC   LDA #<COLOR_RAM + $000F
         PHA 
         LDA zp02 
         PHA 
+
 b2BBC   JSR DrawCharacterOnScreen
         INC zp02 
         INC charToPlot
         DEC zp08 
         BNE b2BBC
+
         PLA 
         PHA 
         STA zp02 
@@ -3105,6 +3108,7 @@ b2BBC   JSR DrawCharacterOnScreen
         INC zp03 
         DEC zp09 
         BNE b2BBC
+
         PLA 
         STA zp02 
         PLA 
@@ -3424,6 +3428,7 @@ WriteStuffToScreen
         STA zp02 
         LDA #$FF
         STA a12D7
+
         LDA #$04
         STA zp03 
 b2E80   LDA zp02 
@@ -3446,12 +3451,15 @@ b2E80   LDA zp02
         JSR s2BA8
         PLA 
         STA zp02 
+
         LDA zp03 
         CLC 
         ADC #$04
         STA zp03 
         CMP #$14
+
         BNE b2E80
+
         RTS 
 
 f2EB3   .BYTE $06,$16,$26,$36,$4D,$36,$4D,$5D
@@ -3903,6 +3911,7 @@ f322B   RTS
 
         .BYTE $42,$56,$2A,$A9
 f3230   .BYTE $C5,$03,$03,$03
+
         BRK #$01
 j3236   CMP #$03
         BEQ b323D
@@ -3967,19 +3976,24 @@ b32B1   DEX
 ; MainGameLoop
 ;------------------------------------------------------------------
 MainGameLoop
-        LDA a17E2
+        LDA currentLevel
         AND #$07
         TAY 
         LDA f3429,Y
         STA a33CE
+
         LDA f3431,Y
         STA $FF16    ;Color register #1
+
         LDA #$71
         STA $FF17    ;Color register #2
+
         LDA #$07
         STA a3398
+
         LDA #$00
         JSR FillColorSequenceData
+
         LDA #$10
         STA a31CF
 
@@ -4014,7 +4028,7 @@ RestartLevel
        ; Main loop?
 b3310   JSR HandleInputAndMoveShips
         JSR HandleFirePressed
-        JSR UpdateBackgroundAnimationData
+        JSR CheckSelectLevelData
         JSR DoSomeMoreAnimation
         LDA playerIsAlive
         BEQ b3310
@@ -4029,7 +4043,7 @@ b3323   LDA SCREEN_RAM + $03C7,X
 
         JSR s1F0B
         JSR PlaySound4
-b3335   JSR UpdateBackgroundAnimationData
+b3335   JSR CheckSelectLevelData
         JSR s3A2A
         LDA a3987
         BNE b3335
@@ -4065,21 +4079,26 @@ b336E   STA SCREEN_RAM + $03E3 ; Update lives left displayed on screen
 
 b3374   LDA #$00
         STA a15CC
-        INC a17E2
-        LDA a17E2
-        CMP #$1E
+
+        INC currentLevel
+        LDA currentLevel
+        CMP #$1E ; Re-start at level 1 if we've reached level 30
         BNE b3388
         LDA #$00
-        STA a17E2
+        STA currentLevel
 
 b3388   INC LivesLeftText
         LDA LivesLeftText
         CMP #$3A
         BNE b3395
         DEC LivesLeftText
-b3395   JMP LoadEnterLevelScreen
+b3395   JMP LoadEnterLevelScreen ; Loops back to MainGameLoop
 
 a3398   .BYTE $00
+
+;------------------------------------------------------------------
+; j3399
+;------------------------------------------------------------------
 j3399   INC $FF0E    ;Voice #1 frequency, bits 0-7
         INC $FF0F    ;Voice #2 frequency, bits 0-7
         DEC a31CF
@@ -4236,7 +4255,8 @@ f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
 ;------------------------------------------------------------------
 ;RunAnAnimationOnScreen
 ;------------------------------------------------------------------
-RunAnAnimationOnScreen   LDA #$00
+RunAnAnimationOnScreen
+        LDA #$00
         STA zp02 
         STA zp03 
         LDA #$09
@@ -4512,9 +4532,9 @@ f370F   .BYTE $00,$00,$00,$00,$FF,$FF,$FF,$00
         .BYTE $01,$01,$01,$00,$00,$00,$00,$00
 f371F   .BYTE $00,$FF,$01,$00,$00,$FF,$01,$00
         .BYTE $00,$FF,$01,$00,$00,$00,$00,$00
-f372F   .BYTE $00,$00,$00,$00
-f3733   .BYTE $00,$00,$00,$00
-f3737   .BYTE $00,$00,$00,$00
+OldShipData1   .BYTE $00,$00,$00,$00
+OldShipData2   .BYTE $00,$00,$00,$00
+OldShipData3   .BYTE $00,$00,$00,$00
 a373B   .BYTE $30
 a373C   .BYTE $01
 
@@ -4543,14 +4563,14 @@ b375C   PLA
         TAY 
         LDA ShipData3,X
         BMI b37C2
-        LDA f372F,X
+        LDA OldShipData1,X
         BEQ b37AE
         AND #$0F
         BEQ b3791
         TYA 
         AND #$03
         BEQ b377F
-        LDA f372F,X
+        LDA OldShipData1,X
         AND #$03
         STA tmpAorX
         TYA 
@@ -4559,13 +4579,13 @@ b375C   PLA
 b377F   TYA 
         AND #$0C
         BEQ b3791
-        LDA f372F,X
+        LDA OldShipData1,X
         AND #$0C
         STA tmpAorX
         TYA 
         EOR tmpAorX
         TAY 
-b3791   LDA f372F,X
+b3791   LDA OldShipData1,X
         AND #$F0
         BEQ b37AE
         TYA 
@@ -4583,30 +4603,30 @@ b3791   LDA f372F,X
 b37AE   LDA ShipData1,X
         CLC 
         ADC f370F,Y
-        STA f3733,X
+        STA OldShipData2,X
         LDA ShipData2,X
         CLC 
         ADC f371F,Y
-        STA f3737,X
+        STA OldShipData3,X
 b37C2   DEX 
         BPL b375C
 
         PLA 
-        LDA f3733
+        LDA OldShipData2
         CMP ShipData1
         BNE b37DA
-        LDA f3737
+        LDA OldShipData3
         CMP ShipData2
         BNE b37DA
         JMP j3803
 
 b37D9   RTS 
 
-b37DA   LDA f3733
+b37DA   LDA OldShipData2
         BMI b37D9
         CMP #$28
         BPL b37D9
-        LDA f3737
+        LDA OldShipData3
         BMI b37D9
         CMP #$18
         BPL b37D9
@@ -4626,10 +4646,10 @@ j3803   LDA #$00
         STA a36A2
 
         LDX #$03 ; Four ships to move.
-b380A   LDA f3733,X
+b380A   LDA OldShipData2,X
         STA zp02 
         STA ShipData1,X
-        LDA f3737,X
+        LDA OldShipData3,X
         STA zp03 
         STA ShipData2,X
         LDA f382E,X
@@ -4946,14 +4966,15 @@ a3A6F   .BYTE $00
 ;------------------------------------------------------
 ; s3A70
 ;------------------------------------------------------
-s3A70   LDY a17E2
+s3A70   LDY currentLevel
         LDX #$04
         LDA LevelDataMapLo,Y
         STA RAM_DATPTR_LO
         LDA LevelDataMapHi,Y
         STA RAM_DATPTR_HI 
-        LDY #$00
 
+        ; Retrieve the level name from the level data.
+        LDY #$00
 b3A81   LDA (RAM_DATPTR_LO),Y
         STA txtLevelName,Y
         STA CurrentLevelText,Y
@@ -4961,6 +4982,7 @@ b3A81   LDA (RAM_DATPTR_LO),Y
         DEX 
         BPL b3A81
 
+        ; Retrieve the data for each ship from the level data
         LDX #$00
 b3A8F   LDA (RAM_DATPTR_LO),Y
         STA ShipData1,X
@@ -4976,7 +4998,7 @@ b3A8F   LDA (RAM_DATPTR_LO),Y
         ADC #$04
         TAY 
         LDA (RAM_DATPTR_LO),Y
-        STA f372F,X
+        STA OldShipData1,X
         TYA 
         CLC 
         ADC #$04
@@ -5018,41 +5040,48 @@ b3AD7   RTS
 a3AD8   .BYTE $00
 
 ;------------------------------------------------------------------
-; UpdateBackgroundAnimation
+; CheckSelectLevel
 ; If the player presses 'right' on the joystick, update the background
-; animation.
+; animation and select a new level.
 ;------------------------------------------------------------------
-UpdateBackgroundAnimation
+CheckSelectLevel
         LDA a3AD8
         BEQ b3AED
+
         DEC a3AD8
         LDA currentJoystick1Reading
         AND #$08 ; right
         BNE b3AD7
+
         LDA #$00
         STA a3AD8
 b3AED   LDA currentJoystick1Reading
         AND #$08 ; right
         BNE b3AD7
+
         LDA #$F0
         STA a3AD8
-        INC a17E2
-        LDA a17E2
+        INC currentLevel
+        LDA currentLevel
         AND #$0F
-        STA a17E2
-        LDX a17E2
+        STA currentLevel
+        LDX currentLevel
         LDA LevelDataMapLo,X
         STA RAM_DATPTR_LO
         LDA LevelDataMapHi,X
         STA RAM_DATPTR_HI 
+
+        ; Update the level text on the screen
         LDY #$04
 b3B13   LDA (RAM_DATPTR_LO),Y
         STA SCREEN_RAM + $0376,Y
         DEY 
         BPL b3B13
+
 b3B1B   LDA currentJoystick1Reading
         AND #$08 ; right
         BEQ b3B1B
+
         LDA #$0C
         STA a2BF3
         RTS 
