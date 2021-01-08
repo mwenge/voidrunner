@@ -64,6 +64,7 @@ RAM_DORES = $000F
 INTERRUPT_ROUTINE = $0314
 COLOR_RAM = $0800
 SCREEN_RAM = $0C00
+SCRN_CURRENT_SCORE = SCREEN_RAM + $03C7
 
         * = $1001
 
@@ -78,6 +79,7 @@ JumpToInitialize
         JMP LaunchGame
 
         ORA (RAM_PDIR,X) ;PDIR    7501 on-chip data-direction register
+
 a1015   .BYTE $03
 a1016   .BYTE $01
 a1017   .BYTE $04
@@ -97,69 +99,83 @@ a1026   .BYTE $B0
 a1027   .BYTE $24
 
 ;------------------------------------------------------------------
-; AdvanceBackgroundAnimation
-; Perform the next in a set sequence of subroutines, listed below.
-; I suspect this is an animation routine.
+; UpdateOscilloscopeState
+; Update the currently running tiled oscilloscopes. There's 5 different
+; styles of oscilloscope in total, spread across the first 8 levels
+; the player can select on the title screen by pushing the joystick
+; to the right. They then cycle around for the remaining levels when
+; the player reaches them in gameplay.
 ;------------------------------------------------------------------
-AdvanceBackgroundAnimation
+UpdateOscilloscopeState
+        ; Get the current level and resolve it 1 of the 5 possible
+        ; oscilloscopes.
         LDY #$00
         LDA currentLevel
         AND #$07
         TAY 
-        ; Use the value of Y (0-7) to pick the subroutine to run.
-        LDA AnimStateMapLo,Y
-        STA a103F
-        LDA AnimStateMapHi,Y
-        STA a1040
-        JMP (a103F) ; $1051 at first pass.
 
-a103F   .BYTE $51
-a1040   .BYTE $10
+        ; Use the level (0-7) to pick the subroutine to run.
+        LDA LevelToOscilloscopeMapLo,Y
+        STA CurOscLo
+        LDA LevelToOscilloscopeMapHi,Y
+        STA CurOscHi
+        JMP (CurOscLo) ; $1051 at first pass.
 
-; This is the set of subroutines to cycle through:
-; ResetAnimationState ($1051)
-; AnimationState1 ($1208)
-; AnimationState2 ($126A)
-; ResetAnimationState ($1051)
-; AnimationState3 ($12BF)
-; ResetAnimationState ($1051)
-; AnimationState4 ($12B3)
-; AnimationState1 ($1208)
-AnimStateMapLo   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
-AnimStateMapHi   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
+CurOscLo   .BYTE $51
+CurOscHi   .BYTE $10
+
+; This is a map of the levels to respective oscilloscope styles.
+; UpdateOscilloscope1 ($1051)
+; UpdateOscilloscope2 ($1208)
+; UpdateOscilloscope3 ($126A)
+; UpdateOscilloscope1 ($1051)
+; UpdateOscilloscope4 ($12BF)
+; UpdateOscilloscope1 ($1051)
+; UpdateOscilloscope5 ($12B3)
+; UpdateOscilloscope2 ($1208)
+LevelToOscilloscopeMapLo   .BYTE $51,$08,$6A,$51,$BF,$51,$B3,$08
+LevelToOscilloscopeMapHi   .BYTE $10,$12,$12,$10,$12,$10,$12,$12
 
 ;------------------------------------------------------------------
-;ResetAnimationState
+;UpdateOscilloscope1
 ;------------------------------------------------------------------
-ResetAnimationState
+UpdateOscilloscope1
         LDY #$00
         JSR ResetDynamicCharset
         DEC a1019
         BNE b106B
+
         LDA a101A
         STA a1019
         LDA a119B
         CLC 
         ADC a101E
         STA a101E
+
 b106B   DEC a101C
         BNE b1080
+
         LDA a101B
         STA a101C
         LDA a101F
         CLC 
         ADC a119C
         STA a101F
+
 b1080   DEC a1020
         BNE b108E
+
         LDA a1021
         STA a1020
         INC a1026
+
 b108E   DEC a1022
         BNE b109C
+
         LDA a1023
         STA a1022
         INC a1027
+
 b109C   LDA a101E
         PHA 
         LDA a101F
@@ -209,6 +225,7 @@ b10AC   LDA a101E
         INY 
         CPY #$10
         BNE b10AC
+
         PLA 
         STA a1027
         PLA 
@@ -219,6 +236,7 @@ b10AC   LDA a101E
         STA a101E
         LDA a101D
         BEQ b116F
+
         LDA #$00
         STA a101D
         JSR GetRandomValue
@@ -344,9 +362,10 @@ f11FF   .BYTE $00,$08,$10,$18,$20,$28,$30,$38
 a1207   .BYTE $02
 
 ;------------------------------------------------------
-; AnimationState1
+; UpdateOscilloscope2
 ;------------------------------------------------------
-AnimationState1   DEC a1207
+UpdateOscilloscope2
+        DEC a1207
         BEQ b120E
         RTS 
 
@@ -367,7 +386,7 @@ b121B   LDA f11FF,X
         TXA 
         ASL 
         TAX 
-        JSR AnimationState2Impl
+        JSR UpdateOscilloscope3Impl
         LDX a11FD
         DEX 
         BPL b1218
@@ -380,9 +399,9 @@ f124A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
 f125A   .BYTE $01,$02,$03,$04,$05,$06,$07,$08
         .BYTE $08,$07,$06,$05,$04,$03,$02,$01
 ;------------------------------------------------------
-; AnimationState2
+; UpdateOscilloscope3
 ;------------------------------------------------------
-AnimationState2
+UpdateOscilloscope3
        JSR ResetDynamicCharset
         LDX #$0F
 b126F   DEC f124A,X
@@ -401,17 +420,18 @@ b1285   TXA
         BMI b1293
         EOR #$0F
 b1293   TAX 
-        JSR AnimationState2Impl
+        JSR UpdateOscilloscope3Impl
         LDX a11FD
         DEX 
         BPL b126F
         RTS 
 
 a129E   .BYTE $00
+
 ;------------------------------------------------------
-; AnimationState2Impl
+; UpdateOscilloscope3Impl
 ;------------------------------------------------------
-AnimationState2Impl
+UpdateOscilloscope3Impl
         LDA a129E
         BEQ b12AA
         TXA 
@@ -426,22 +446,22 @@ b12AA   JSR UpdateDynamicCharset
         RTS 
 
 ;------------------------------------------------------
-; AnimationState4
+; UpdateOscilloscope5
 ;------------------------------------------------------
-AnimationState4
+UpdateOscilloscope5
         LDA #$01
         STA a129E
-        JSR AnimationState2
+        JSR UpdateOscilloscope3
         DEC a129E
         RTS 
 
 ;------------------------------------------------------
-; AnimationState3
+; UpdateOscilloscope4
 ;------------------------------------------------------
-AnimationState3
+UpdateOscilloscope4
         LDA #$01
         STA a129E
-        JSR AnimationState1
+        JSR UpdateOscilloscope2
         DEC a129E
         RTS 
 
@@ -654,6 +674,7 @@ b14D9   INX
 ;------------------------------------------------------------------
 SelectedRoutineLo   .BYTE $00
 SelectedRoutineHi   .BYTE $00
+
 CallSelectedRoutine
         ; Uses the value at index in f13E2 to pick a routine to call.
         ; The valid routines are listed below.
@@ -694,9 +715,10 @@ b1514   DEC a15CD
 b1519   RTS 
 
 ;------------------------------------------------------
-; s151A
+; UpdateScreenData
 ;------------------------------------------------------
-s151A   LDA a15CF
+UpdateScreenData   
+        LDA a15CF
         BEQ b1514
         LDA a14A2
         BNE b1519
@@ -772,10 +794,10 @@ b15A7   LDA a1513
         BNE b15A7
 b15B7   RTS 
 
-b15B8   LDA a15CC
+b15B8   LDA levelIsComplete
         BNE b15B7
         LDA #$01
-        STA a15CC
+        STA levelIsComplete
         STA playerIsAlive
         LDA #$00
         STA a15CE
@@ -783,7 +805,7 @@ b15B8   LDA a15CC
 
 
 a15CB   .BYTE $00
-a15CC   .BYTE $00
+levelIsComplete   .BYTE $00
 a15CD   .BYTE $01
 a15CE   .BYTE $00
 a15CF   .BYTE $00
@@ -943,9 +965,9 @@ a17C0   .BYTE $09
 a17C1   .BYTE $01
 
 ;------------------------------------------------------------------
-; CheckSelectLevelData
+; UpdateBackgroundAnimationData
 ;------------------------------------------------------------------
-CheckSelectLevelData
+UpdateBackgroundAnimationData
         DEC a17BF
         BNE b17CF
         JSR RunSequenceFromf13A2
@@ -957,7 +979,7 @@ b17CF   DEC a17C1
         STA a17C1
         LDA playerIsAlive
         BNE b17E1
-        JSR s151A
+        JSR UpdateScreenData
 b17E1   RTS 
 
 currentLevel   .BYTE $00
@@ -980,7 +1002,6 @@ b17E9   LDA f1462,X
 
 b17F9   LDA #$06
         STA f1422,X
-RAM_BMLUM   =*+$02
         JSR s1804
         JMP j185B
 
@@ -1158,20 +1179,17 @@ f192C   .BYTE $00,$81,$73,$00,$61,$65,$85,$81
         LDA #$03
         STA f1402,X
         JSR DrawDataToScreen
-        RTS 
+b1970   RTS 
 
-f1971   BRK #$00
-        BPL b1985
-        JSR e4020
-        BVS b19EA
-        RTI 
+f1971   .BYTE $00,$00,$10,$10,$20,$20,$40,$70
+        .BYTE $70,$40,$20,$20,$10,$10,$00,$00
 
-        JSR a1020
-        BPL b1980
-b1980   BRK #$DE
-        .BYTE $62    ;JAM 
-        .BYTE $14,$D0 ;NOP $D0,X
-b1985   NOP 
+;------------------------------------------------------------------
+; s1981
+;------------------------------------------------------------------
+s1981
+        DEC f1462,X
+        BNE b1970
         LDA #$03
         STA f1462,X
         INC f1422,X
@@ -1220,7 +1238,7 @@ b19D2   STX a19FE
         LDA f2273,Y
         BEQ b19E3
         JSR s2261
-b19E3   JSR s1F9F
+b19E3   JSR UpdateScore
         LDA f1A00,Y
 b19EA   =*+$01
         BEQ b19F5
@@ -1367,6 +1385,10 @@ DrawDataToScreen
         STA a1A2A
 b1B13   RTS 
 
+;------------------------------------------------------------------
+; s1B14
+;------------------------------------------------------------------
+s1B14
         DEC f1462,X
         BNE b1B13
         LDA #$03
@@ -1445,6 +1467,10 @@ b1BA0   JSR DrawCharacterOnScreen
         STA f13C2,X
 b1BAF   RTS 
 
+;------------------------------------------------------------------
+; s1BB0
+;------------------------------------------------------------------
+s1BB0
         DEC f1402,X
         BNE b1BAF
         LDA f1442,X
@@ -1487,7 +1513,7 @@ s1BF9   LDA (RAM_DATPTR_LO),Y
         CMP #$76
         BNE b1C06
         INY 
-RAM_BMCOLR LDA #$FF
+        LDA #$FF
         STA a1BF6
         RTS 
 
@@ -1596,6 +1622,10 @@ b1CBE   CMP #$06
         STA f1422,X
 b1CC7   RTS 
 
+;------------------------------------------------------------------
+; s1CC8
+;------------------------------------------------------------------
+s1CC8
         DEC f1402,X
         BNE b1CC7
         LDA #$02
@@ -1634,6 +1664,10 @@ a1D0E   .BYTE $00
         STA f1402,X
 b1D19   RTS 
 
+;------------------------------------------------------------------
+; s1D1A
+;------------------------------------------------------------------
+s1D1A
         DEC f1402,X
         BNE b1D19
         LDA #$01
@@ -1781,6 +1815,10 @@ b1E0A   LDA #$01
         INC f1482,X
 b1E5A   RTS 
 
+;------------------------------------------------------------------
+; s1E5B
+;------------------------------------------------------------------
+s1E5B
         DEC f1402,X
         BNE b1E5A
         LDA #$03
@@ -1843,6 +1881,10 @@ b1ECA   LDA #$F1
         STA f1482,X
 b1ED4   RTS 
 
+;------------------------------------------------------------------
+; s1ED5
+;------------------------------------------------------------------
+s1ED5
         DEC f1402,X
         BNE b1ED4
         LDA #$02
@@ -1872,7 +1914,7 @@ b1F06   LDY #$03
 ;------------------------------------------------------
 s1F0B   JSR Initializef13A2
         LDX #$09
-b1F10   LDA SCREEN_RAM + $03C7,X
+b1F10   LDA SCRN_CURRENT_SCORE,X
         STA CurrentScore,X
         DEX 
         BPL b1F10
@@ -1951,9 +1993,9 @@ b1F86   LDY f1F97,X
 f1F97   .BYTE $00,$00,$00,$00
 f1F9B   .BYTE $00,$00,$00,$00
 ;------------------------------------------------------
-; s1F9F
+; UpdateScore
 ;------------------------------------------------------
-s1F9F   TXA 
+UpdateScore   TXA 
         PHA 
         TYA 
         PHA 
@@ -1978,12 +2020,13 @@ b1FAD   PHA
 b1FB9   TXA 
         PHA 
 
-b1FBB   INC SCREEN_RAM + $03C7,X
-        LDA SCREEN_RAM + $03C7,X
+        ; Update Score
+b1FBB   INC SCRN_CURRENT_SCORE,X
+        LDA SCRN_CURRENT_SCORE,X
         CMP #$3A
         BNE b1FCD
         LDA #$30
-        STA SCREEN_RAM + $03C7,X
+        STA SCRN_CURRENT_SCORE,X
         DEX 
         BPL b1FBB
 
@@ -2018,6 +2061,10 @@ b200A   LDA #$06
         STA f1402,X
 b200F   RTS 
 
+;------------------------------------------------------------------
+; s2010
+;------------------------------------------------------------------
+s2010
         DEC f1402,X
         BNE b200F
         LDA #$03
@@ -2193,6 +2240,10 @@ b2174   LDA #$02
 b2176   STA f1482,X
 b2179   RTS 
 
+;------------------------------------------------------------------
+; s217A
+;------------------------------------------------------------------
+s217A
         DEC f1402,X
         BNE b2179
         LDA #$02
@@ -2783,14 +2834,14 @@ Level10Data ;$270E
         .BYTE $23,$04,$9F,$01,$02,$FF,$00,$FF
         .BYTE $FE,$00,$24,$FD
 
-; Level11Data $272F
+Level11Data ;$272F
         .BYTE $2F,$2F,$2F,$2F
         .BYTE $2F,$12,$14,$16,$18,$0D,$0E,$0E
         .BYTE $0D,$00,$00,$00,$00,$00,$00,$00
         .BYTE $00,$23,$1E,$85,$01,$02,$FF,$17
         .BYTE $00,$FE,$14,$24,$FE,$00,$FD
 
-; Level12Data $2752
+Level12Data ;$2752
         .BYTE $46
         .BYTE $41,$55,$4E,$41,$13,$14,$15,$16
         .BYTE $10,$0F,$0E,$0D,$00,$00,$00,$00
@@ -2798,7 +2849,7 @@ Level10Data ;$270E
         .BYTE $FF,$00,$04,$FE,$05,$24,$FE,$00
         .BYTE $FD
 
-; Level13Data $2774
+Level13Data ;$2774
         .BYTE $36,$38,$30,$30,$30,$13,$14
         .BYTE $15,$16,$0A,$0E,$0E,$0A,$00,$00
         .BYTE $00,$00,$04,$00,$00,$04,$84,$03
@@ -2807,7 +2858,7 @@ Level10Data ;$270E
         .BYTE $01,$04,$44,$17,$02,$FE,$14,$24
         .BYTE $FE,$00,$FD
 
-; Level14Data $27A6
+Level14Data ;$27A6
         .BYTE $47,$49,$4C,$42,$59
         .BYTE $14,$15,$14,$15,$0C,$0C,$0D,$0D
         .BYTE $00,$00,$00,$00,$07,$01,$05,$03
@@ -2816,7 +2867,7 @@ Level10Data ;$270E
         .BYTE $02,$27,$17,$07,$88,$01,$02,$27
         .BYTE $00,$05,$FE,$00,$24,$FD
 
-; Level15Data $27D9
+Level15Data ;$27D9
         .BYTE $48,$41
         .BYTE $49,$52,$59,$13,$14,$15,$16,$0C
         .BYTE $0C,$0C,$0C,$00,$00,$00,$00,$04
@@ -2826,7 +2877,7 @@ Level10Data ;$270E
         .BYTE $23,$30,$01,$05,$44,$44,$00,$FE
         .BYTE $0A,$24,$FE,$00,$FD
 
-; Level16Data $2810
+Level16Data ;$2810
         .BYTE $20,$47,$4E
         .BYTE $55,$20,$13,$14,$15,$16,$0C,$0C
         .BYTE $0C,$0C,$03,$00,$00,$03,$00,$00
@@ -2835,7 +2886,7 @@ Level10Data ;$270E
         .BYTE $01,$02,$44,$44,$00,$FE,$02,$24
         .BYTE $FD
 
-; Level17Data $283C
+Level17Data ;$283C
         .BYTE $48,$4F,$52,$53,$45,$13,$13
         .BYTE $13,$13,$0B,$0C,$0C,$0C,$00,$00
         .BYTE $00,$00,$00,$02,$04,$06,$23,$30
@@ -2843,7 +2894,7 @@ Level10Data ;$270E
         .BYTE $FF,$00,$04,$FE,$05,$24,$FE,$00
         .BYTE $FD
 
-; Level18Data $2864
+Level18Data ;$2864
         .BYTE $5A,$49,$47,$47,$59,$13,$14
         .BYTE $15,$16,$0C,$0B,$0B,$0C,$00,$00
         .BYTE $00,$00,$04,$00,$00,$04,$23,$0A
@@ -2853,14 +2904,14 @@ Level10Data ;$270E
         .BYTE $24,$FE,$00,$FF
 
 
-; Level19Data $2897
+Level19Data ;$2897
         .BYTE $20,$54,$45,$41
         .BYTE $20,$0A,$0A,$0A,$0A,$0C,$0B,$0D
         .BYTE $0E,$00,$00,$00,$00,$02,$02,$02
         .BYTE $02,$23,$14,$01,$05,$14,$FF,$00
         .BYTE $01,$05,$1E,$FF,$00,$88,$01,$02
         .BYTE $27,$FF,$FF,$FE,$07,$24,$FE,$00
-; Level20Data $28C4
+Level20Data ;$28C4
         .BYTE $FD
         .BYTE $52,$41,$49,$4E,$20,$14,$13
         .BYTE $15,$16,$0C,$0C,$0C,$0C,$00,$00
@@ -2868,7 +2919,7 @@ Level10Data ;$270E
         .BYTE $01,$0D,$44,$00,$04,$01,$04,$FF
         .BYTE $00,$04,$24,$FE,$00,$FD
 
-; Level21Data $28E9
+Level21Data ;$28E9
         .BYTE $45,$56
         .BYTE $49,$4C,$3B,$13,$14,$13,$14,$0B
         .BYTE $0B,$0C,$0C,$00,$00,$00,$00,$00
@@ -2878,7 +2929,7 @@ Level10Data ;$270E
         .BYTE $44,$17,$00,$FE,$06,$24,$FE,$00
         .BYTE $FD
 
-; Level22Data $291C
+Level22Data ;$291C
         .BYTE $57,$45,$49,$52,$44,$14,$14
         .BYTE $14,$14,$0C,$0C,$0C,$0C,$00,$FC
         .BYTE $0F,$F3,$00,$02,$04,$06,$23,$04
@@ -2887,7 +2938,7 @@ Level10Data ;$270E
         .BYTE $FF,$FF,$82,$01,$02,$27,$FF,$FF
         .BYTE $FE,$00,$24,$FD
 
-; Level23Data $294F
+Level23Data ;$294F
         .BYTE $53,$50,$4C,$49
         .BYTE $54,$13,$14,$13,$14,$0B,$0B,$0C
         .BYTE $0C,$00,$00,$00,$00,$06,$02,$06
@@ -2895,7 +2946,7 @@ Level10Data ;$270E
         .BYTE $01,$02,$27,$FF,$02,$FE,$02,$24
         .BYTE $FE,$00,$FD
 
-; Level24Data $2976
+Level24Data ;$2976
         .BYTE $42,$4F,$4E,$55,$53
         .BYTE $13,$14,$13,$14,$0B,$0B,$0C,$0C
         .BYTE $00,$00,$00,$00,$00,$00,$04,$04
@@ -2907,7 +2958,7 @@ Level10Data ;$270E
         .BYTE $00,$04,$01,$04,$44,$17,$00,$24
         .BYTE $FE,$00,$FD
 
-; Level25Data $29BE
+Level25Data ;$29BE
         .BYTE $41,$54,$41,$52,$49
         .BYTE $12,$14,$12,$14,$0A,$0A,$0C,$0C
         .BYTE $00,$00,$00,$00,$00,$02,$06,$04
@@ -2916,7 +2967,7 @@ Level10Data ;$270E
         .BYTE $02,$00,$FF,$01,$88,$01,$02,$27
         .BYTE $FF,$05,$FE,$00,$24,$FD
 
-; Level26Data $29F1
+Level26Data ;$29F1
         .BYTE $50,$49
         .BYTE $58,$45,$4C,$14,$14,$14,$14,$0C
         .BYTE $0B,$0D,$0E,$00,$00,$00,$00,$00
@@ -2926,14 +2977,14 @@ Level10Data ;$270E
         .BYTE $27,$FF,$06,$FE,$0A,$24,$FE,$00
         .BYTE $FD
 
-; Level27Data $2A24
+Level27Data ;$2A24
         .BYTE $46,$55,$52,$52,$59,$13,$14
         .BYTE $15,$16,$0C,$0C,$0C,$0C,$00,$00
         .BYTE $0C,$0C,$00,$00,$04,$04,$23,$07
         .BYTE $90,$01,$02,$FF,$00,$FF,$90,$01
         .BYTE $02,$FF,$17,$FF,$FE,$00,$24,$FD
 
-; Level28Data $2A4B
+Level28Data ;$2A4B
         .BYTE $35,$32,$30,$53,$54,$14,$13,$15
         .BYTE $14,$0B,$0C,$0C,$0D,$00,$00,$00
         .BYTE $00,$00,$06,$02,$04,$23,$10,$88
@@ -2942,14 +2993,14 @@ Level10Data ;$270E
         .BYTE $02,$88,$01,$02,$27,$FF,$06,$FE
         .BYTE $14,$24,$FE,$00,$FD
 
-; Level29Data $2A80
+Level29Data ;$2A80
         .BYTE $44,$49,$46
         .BYTE $46,$59,$12,$14,$12,$14,$0A,$0A
         .BYTE $0C,$0C,$00,$0C,$03,$0F,$07,$01
         .BYTE $05,$03,$23,$10,$9F,$01,$02,$14
         .BYTE $0C,$00,$FE,$14,$24,$FE,$00,$FD
 
-; Level30Data $2AA3
+Level30Data ;$2AA3
         .BYTE $56,$4F,$49,$44,$3B,$13,$12,$14
         .BYTE $15,$0C,$0C,$0C,$0C,$00,$00,$00
         .BYTE $00,$00,$00,$00,$00,$23,$30,$01
@@ -3049,7 +3100,7 @@ Init_WaitForFire
 
         JSR ResetColorSequenceData
         JSR InitializeColorSequenceData
-        JSR WriteStuffToScreen
+        JSR SetUpOscilloscopes
         JSR WriteTitleScreenText
 
 TitleScreenLoop
@@ -3202,7 +3253,7 @@ ResetInterruptCount
         STA a31CE
         JMP (a31CD) ; can be JustPlayASound1 or CheckInputAndPlaySound
 
-b2C4E   JSR AdvanceBackgroundAnimation
+b2C4E   JSR UpdateOscilloscopeState
         JSR UpdateCurrentColorAndColorSequence
         JSR s2E43
         JSR PlaySomeSounds
@@ -3323,8 +3374,8 @@ TitleScreenText
         .BYTE $01,$02,$03,$04,$05,$06,$07,$08 ; Padding before the title text
         .BYTE $09,$0A,$0B,$0C,$0B,$0C,$0D,$0E
         .BYTE $07
-TitleTop .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
-TitleBottom   .TEXT "LEVEL /YAK/    LAST SCORE WAS "
+TitleTop    .TEXT "VOIDRUNNER    CREATED BY   / / YAK / /  "
+TitleBottom .TEXT "LEVEL /YAK/    LAST SCORE WAS "
 LastScore   .TEXT "0000000000"
 
 ;------------------------------------------------------
@@ -3421,9 +3472,9 @@ b2E6A   PLA
         RTS 
 
 ;------------------------------------------------------------------
-; WriteStuffToScreen
+; SetUpOscilloscopes
 ;------------------------------------------------------------------
-WriteStuffToScreen
+SetUpOscilloscopes
         LDA #$00
         STA zp02 
         LDA #$FF
@@ -3583,7 +3634,7 @@ LoadEnterLevelScreen
         STY a33CF
         AND #$CF
         STA $FF11    ;Bits 0-3 : Volume control
-        JSR s3A70
+        JSR UpdateShipDataAndLevelName
         LDA #$FF
         STA a2094
         STA a12D7
@@ -3849,7 +3900,7 @@ CheckInputAndPlaySound
         LDA #$00
         STA $FF15    ;Background color register
         JSR CheckJoystick1
-        JSR AdvanceBackgroundAnimation
+        JSR UpdateOscilloscopeState
         LDA #$00
         STA $FF15    ;Background color register
         LDA a234C
@@ -4028,14 +4079,14 @@ RestartLevel
        ; Main loop?
 b3310   JSR HandleInputAndMoveShips
         JSR HandleFirePressed
-        JSR CheckSelectLevelData
+        JSR UpdateBackgroundAnimationData
         JSR DoSomeMoreAnimation
         LDA playerIsAlive
         BEQ b3310
 
         ; Update last score with current score
         LDX #$09
-b3323   LDA SCREEN_RAM + $03C7,X
+b3323   LDA SCRN_CURRENT_SCORE,X
         STA CurrentScore,X
         STA LastScore,X
         DEX 
@@ -4043,7 +4094,7 @@ b3323   LDA SCREEN_RAM + $03C7,X
 
         JSR s1F0B
         JSR PlaySound4
-b3335   JSR CheckSelectLevelData
+b3335   JSR UpdateBackgroundAnimationData
         JSR s3A2A
         LDA a3987
         BNE b3335
@@ -4060,8 +4111,8 @@ b334D   LDA f1F9B,X ; 4 ships.
         DEX 
         BPL b334D
 
-        LDA a15CC
-        BNE b3374
+        LDA levelIsComplete
+        BNE LevelComplete
 
         ; Player got killed
         DEC LivesLeftText
@@ -4077,8 +4128,10 @@ b334D   LDA f1F9B,X ; 4 ships.
 b336E   STA SCREEN_RAM + $03E3 ; Update lives left displayed on screen
         JMP RestartLevel
 
-b3374   LDA #$00
-        STA a15CC
+        ; Player has completed level. Start the next one.
+LevelComplete
+        LDA #$00
+        STA levelIsComplete
 
         INC currentLevel
         LDA currentLevel
@@ -4231,7 +4284,7 @@ b34A0   INC f3439,X
         INC a31CF
         LDA ScoreLabelText,X
         STA SCREEN_RAM + $03C0,X
-        LDA f34F3,X
+        LDA BottomTextColorMap,X
         ORA #$70
         STA COLOR_RAM + $03C0,X
 b34BE   INX 
@@ -4243,10 +4296,11 @@ b34BE   INX
         RTS 
 
 ScoreLabelText   .TEXT "SCORE: "
-CurrentScore   .TEXT "0000000000  LEVEL: "
-CurrentLevelText   .TEXT "/YAK/  `:"
-LivesLeftText   .TEXT "0 YAK"
-f34F3   .BYTE $07,$07,$07,$07,$07,$07,$00,$01
+CurrentScore     .TEXT "0000000000  LEVEL: "
+CurrentLevelText .TEXT "/YAK/  `:"
+LivesLeftText    .TEXT "0 YAK"
+BottomTextColorMap
+        .BYTE $07,$07,$07,$07,$07,$07,$00,$01
         .BYTE $01,$01,$01,$01,$01,$01,$01,$01
         .BYTE $01,$00,$00,$04,$04,$04,$04,$04
         .BYTE $01,$00,$01,$01,$01,$01,$01,$00
@@ -4964,9 +5018,10 @@ b3A66   LDA a3987
 a3A6F   .BYTE $00
 
 ;------------------------------------------------------
-; s3A70
+; UpdateShipDataAndLevelName
 ;------------------------------------------------------
-s3A70   LDY currentLevel
+UpdateShipDataAndLevelName
+        LDY currentLevel
         LDX #$04
         LDA LevelDataMapLo,Y
         STA RAM_DATPTR_LO
