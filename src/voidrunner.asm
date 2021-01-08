@@ -1910,9 +1910,10 @@ b1F06   LDY #$03
         JMP SelectStepInAnimation1
 
 ;------------------------------------------------------
-; s1F0B
+; ResetPlayerState
 ;------------------------------------------------------
-s1F0B   JSR Initializef13A2
+ResetPlayerState   
+        JSR Initializef13A2
         LDX #$09
 b1F10   LDA SCRN_CURRENT_SCORE,X
         STA CurrentScore,X
@@ -3133,9 +3134,9 @@ s2BA8   LDA #>COLOR_RAM + $000F
         STA colourToPlot 
 
 ;------------------------------------------------------
-; s2BAC
+; RunAnimationOnScreenImpl
 ;------------------------------------------------------
-s2BAC   LDA #<COLOR_RAM + $000F
+RunAnimationOnScreenImpl   LDA #<COLOR_RAM + $000F
         STA charToPlot
         LDA #$04
         STA zp08 
@@ -3313,6 +3314,8 @@ WriteTitleScreenText
         ORA #$10
         STA GRAPHICS_CHIP
 
+        ; Paint the main title 'Voidrunner'. Uses the chatacters
+        ; in the charset from $00 to $0E to achieve the effect.
         LDX #$10
 b2D16   LDA TitleScreenText,X
         STA SCREEN_RAM + $01C4,X
@@ -3563,7 +3566,8 @@ b2F17   LDA $FF11    ;Bits 0-3 : Volume control
 ;------------------------------------------------------
 ; PlaySoundImpl
 ;------------------------------------------------------
-PlaySoundImpl   LDA a2ED6
+PlaySoundImpl
+        LDA a2ED6
         PHA 
         CLC 
         ROL 
@@ -4092,10 +4096,10 @@ b3323   LDA SCRN_CURRENT_SCORE,X
         DEX 
         BNE b3323
 
-        JSR s1F0B
+        JSR ResetPlayerState
         JSR PlaySound4
 b3335   JSR UpdateBackgroundAnimationData
-        JSR s3A2A
+        JSR PlayExplosionSound
         LDA a3987
         BNE b3335
 
@@ -4315,7 +4319,7 @@ RunAnAnimationOnScreen
         STA zp03 
         LDA #$09
         STA colourToPlot 
-b3525   JSR s2BAC
+b3525   JSR RunAnimationOnScreenImpl
         LDA zp02 
         CLC 
         ADC #$04
@@ -4979,9 +4983,10 @@ b39F7   DEY
 b3A29   RTS 
 
 ;------------------------------------------------------
-; s3A2A
+; PlayExplosionSound
 ;------------------------------------------------------
-s3A2A   DEC a3A6F
+PlayExplosionSound
+        DEC a3A6F
         BNE b3A29
         LDA #$1A
         STA a3A6F
