@@ -10,7 +10,7 @@ all: clean d64 run
 original: clean d64_orig run_orig
 
 voidrunner.prg: src/voidrunner.asm
-	64tass -Wall --cbm-prg -o bin/voidrunner.prg -L bin/list-co1.txt -l bin/labels.txt src/voidrunner.asm
+	64tass -Wall -Wno-implied-reg --cbm-prg -o bin/voidrunner.prg -L bin/list-co1.txt -l bin/labels.txt src/voidrunner.asm
 	md5sum bin/voidrunner.prg orig/voidrunner.prg
 
 d64: voidrunner.prg
