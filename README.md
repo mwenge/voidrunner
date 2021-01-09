@@ -29,3 +29,11 @@ To just compile the game and get a binary (`voidrunner.prg`) do:
 $ make voidrunner
 ```
 
+## Original Manual
+[voidrunner1]
+[voidrunner2]
+
+![voidrunner1](https://user-images.githubusercontent.com/58846/104088333-05a47700-525e-11eb-94be-7dc76bc782bb.jpg)
+![voidrunner2](https://user-images.githubusercontent.com/58846/104088334-0806d100-525e-11eb-8fc5-30462700aa7c.jpg)
+
+
